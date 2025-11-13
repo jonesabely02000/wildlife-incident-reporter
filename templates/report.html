@@ -651,5 +651,63 @@ window.addEventListener('offline', function() {
   checkOnlineStatus();
 });
 </script>
+<script>
+// Pre-cache all important pages when online
+if ('serviceWorker' in navigator && navigator.serviceWorker.controller) {
+    // Tell service worker to cache additional pages
+    navigator.serviceWorker.controller.postMessage({
+        type: 'CACHE_URLS',
+        urls: ['/report', '/incidents', '/export', '/offline']
+    });
+}
+
+// Enhanced offline detection
+function updateOnlineStatus() {
+    if (!navigator.onLine) {
+        // Add offline indicator
+        if (!document.querySelector('.offline-indicator')) {
+            const indicator = document.createElement('div');
+            indicator.className = 'offline-indicator';
+            indicator.style.cssText = `
+                position: fixed;
+                top: 10px;
+                right: 10px;
+                background: #e74c3c;
+                color: white;
+                padding: 8px 15px;
+                border-radius: 20px;
+                font-size: 12px;
+                font-weight: bold;
+                z-index: 10000;
+                box-shadow: 0 2px 10px rgba(0,0,0,0.3);
+            `;
+            indicator.innerHTML = '🔴 Offline';
+            document.body.appendChild(indicator);
+        }
+    } else {
+        // Remove offline indicator
+        const indicator = document.querySelector('.offline-indicator');
+        if (indicator) {
+            indicator.remove();
+        }
+    }
+}
+
+// Set up online/offline listeners
+window.addEventListener('online', updateOnlineStatus);
+window.addEventListener('offline', updateOnlineStatus);
+updateOnlineStatus(); // Check initial status
+
+// Enhanced link handling for offline
+document.addEventListener('click', function(e) {
+    if (e.target.tagName === 'A' && !navigator.onLine) {
+        const href = e.target.getAttribute('href');
+        if (href && href.startsWith('/') && !href.startsWith('//')) {
+            // For internal links, let them proceed - service worker will handle
+            console.log('Offline navigation attempt:', href);
+        }
+    }
+});
+</script>
 </body>
 </html>

@@ -226,6 +226,11 @@ def get_incidents():
 def offline():
     return render_template('offline.html')
 
+# Add this with your other routes in app.py
+@app.route('/offline')
+def offline():
+    return render_template('offline.html')
+
 @app.route('/export')
 def export_incidents():
     try:

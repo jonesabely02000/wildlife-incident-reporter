@@ -1,48 +1,140 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Wildlife Incident Reporter - Offline</title>
     <style>
         body {
             font-family: Arial, sans-serif;
-            text-align: center;
-            padding: 50px;
-            background: #f4f4f4;
+            margin: 0;
+            padding: 20px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
         }
         .container {
-            background: white;
+            background: rgba(255, 255, 255, 0.95);
+            color: #333;
             padding: 40px;
-            border-radius: 10px;
-            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            border-radius: 15px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.3);
+            text-align: center;
             max-width: 500px;
-            margin: 0 auto;
+            width: 90%;
         }
         h1 {
             color: #e74c3c;
+            margin-bottom: 20px;
+            font-size: 24px;
+        }
+        .icon {
+            font-size: 48px;
+            margin-bottom: 20px;
         }
         .btn {
             background: #3498db;
             color: white;
-            padding: 10px 20px;
+            padding: 12px 24px;
             text-decoration: none;
-            border-radius: 5px;
+            border-radius: 25px;
             display: inline-block;
             margin: 10px;
+            border: none;
+            cursor: pointer;
+            font-size: 16px;
+            transition: background 0.3s;
+        }
+        .btn:hover {
+            background: #2980b9;
+        }
+        .btn-offline {
+            background: #e67e22;
+        }
+        .btn-offline:hover {
+            background: #d35400;
+        }
+        .features {
+            text-align: left;
+            margin: 20px 0;
+            padding: 15px;
+            background: #f8f9fa;
+            border-radius: 8px;
+        }
+        .features ul {
+            margin: 10px 0;
+            padding-left: 20px;
+        }
+        .features li {
+            margin: 8px 0;
         }
     </style>
 </head>
 <body>
     <div class="container">
-        <h1>🔌 You're Offline</h1>
-        <p>Don't worry! You can still use the Wildlife Incident Reporter.</p>
-        <p>Your reports will be saved locally and synced when you're back online.</p>
-        <div>
-            <a href="/report" class="btn">📝 Report New Incident</a>
-            <a href="/incidents" class="btn">📊 View Local Incidents</a>
+        <div class="icon">🔌</div>
+        <h1>You're Currently Offline</h1>
+        <p>Don't worry! The Wildlife Incident Reporter can still work offline.</p>
+        
+        <div class="features">
+            <strong>You can still:</strong>
+            <ul>
+                <li>📝 Fill out incident reports</li>
+                <li>💾 Save data locally on your device</li>
+                <li>📊 View previously loaded incidents</li>
+                <li>🔄 Auto-sync when back online</li>
+            </ul>
         </div>
+
+        <div>
+            <button class="btn" onclick="window.location.href='/report'">
+                📝 Report New Incident
+            </button>
+            <button class="btn btn-offline" onclick="window.location.href='/incidents'">
+                📊 View Local Data
+            </button>
+            <button class="btn" onclick="window.location.href='/'">
+                🏠 Return Home
+            </button>
+        </div>
+
         <p style="margin-top: 20px; font-size: 14px; color: #666;">
-            <strong>Note:</strong> Some features may be limited while offline.
+            <strong>Tip:</strong> Make sure you've visited these pages while online to cache them for offline use.
         </p>
     </div>
+
+    <script>
+        // Try to reload when coming back online
+        window.addEventListener('online', function() {
+            // Show reconnection message
+            const message = document.createElement('div');
+            message.style.cssText = `
+                position: fixed;
+                top: 20px;
+                right: 20px;
+                background: #27ae60;
+                color: white;
+                padding: 15px;
+                border-radius: 5px;
+                z-index: 10000;
+                box-shadow: 0 2px 10px rgba(0,0,0,0.3);
+            `;
+            message.innerHTML = '🟢 Back online! <a href="javascript:location.reload()" style="color: white; text-decoration: underline;">Reload page</a>';
+            document.body.appendChild(message);
+            
+            setTimeout(() => {
+                message.remove();
+            }, 5000);
+        });
+
+        // Check if we're still offline
+        if (navigator.onLine) {
+            // If we're online but seeing offline page, redirect home
+            window.location.href = '/';
+        }
+    </script>
 </body>
 </html>
