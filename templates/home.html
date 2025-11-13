@@ -61,5 +61,57 @@
         </nav>
         <p>Report and track wildlife incidents in your area. Help protect communities and wildlife through timely reporting and monitoring.</p>
     </div>
+    <script>
+// Service Worker Registration for offline support
+if ('serviceWorker' in navigator) {
+  navigator.serviceWorker.register('/static/sw.js')
+    .then(registration => console.log('SW registered'))
+    .catch(error => console.log('SW registration failed'));
+}
+
+// Offline status indicator
+if (!navigator.onLine) {
+  const indicator = document.createElement('div');
+  indicator.style.cssText = `
+    position: fixed;
+    top: 10px;
+    right: 10px;
+    background: #ff6b6b;
+    color: white;
+    padding: 5px 10px;
+    border-radius: 15px;
+    font-size: 12px;
+    z-index: 10000;
+  `;
+  indicator.textContent = '🔴 Offline';
+  document.body.appendChild(indicator);
+}
+</script>
+<script>
+// Service Worker Registration for offline support
+if ('serviceWorker' in navigator) {
+  navigator.serviceWorker.register('/static/sw.js')
+    .then(registration => console.log('SW registered'))
+    .catch(error => console.log('SW registration failed'));
+}
+
+// Offline status indicator
+if (!navigator.onLine) {
+  const indicator = document.createElement('div');
+  indicator.style.cssText = `
+    position: fixed;
+    top: 10px;
+    right: 10px;
+    background: #ff6b6b;
+    color: white;
+    padding: 5px 10px;
+    border-radius: 15px;
+    font-size: 12px;
+    z-index: 10000;
+  `;
+  indicator.textContent = '🔴 Offline';
+  document.body.appendChild(indicator);
+}
+</script>
 </body>
 </html>

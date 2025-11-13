@@ -586,5 +586,70 @@ document.addEventListener('DOMContentLoaded', function() {
     });
 });
 </script>
+<script>
+// Service Worker Registration
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', function() {
+    navigator.serviceWorker.register('/static/sw.js')
+      .then(function(registration) {
+        console.log('ServiceWorker registration successful with scope: ', registration.scope);
+      })
+      .catch(function(error) {
+        console.log('ServiceWorker registration failed: ', error);
+      });
+  });
+}
+
+// Offline detection and custom message
+function checkOnlineStatus() {
+  if (!navigator.onLine) {
+    // Show custom offline message instead of browser's default
+    const offlineMessage = document.createElement('div');
+    offlineMessage.style.cssText = `
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      background: #ff6b6b;
+      color: white;
+      padding: 10px;
+      text-align: center;
+      z-index: 10000;
+      font-weight: bold;
+    `;
+    offlineMessage.innerHTML = '🔴 You are currently offline. You can still fill out reports - they will sync when you reconnect.';
+    document.body.appendChild(offlineMessage);
+  }
+}
+
+// Check status on load and when connection changes
+window.addEventListener('load', checkOnlineStatus);
+window.addEventListener('online', function() {
+  const offlineMsg = document.querySelector('[style*="background: #ff6b6b"]');
+  if (offlineMsg) offlineMsg.remove();
+  
+  // Show online message
+  const onlineMessage = document.createElement('div');
+  onlineMessage.style.cssText = `
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    background: #51cf66;
+    color: white;
+    padding: 10px;
+    text-align: center;
+    z-index: 10000;
+    font-weight: bold;
+  `;
+  onlineMessage.innerHTML = '🟢 You are back online!';
+  document.body.appendChild(onlineMessage);
+  setTimeout(() => onlineMessage.remove(), 3000);
+});
+
+window.addEventListener('offline', function() {
+  checkOnlineStatus();
+});
+</script>
 </body>
 </html>

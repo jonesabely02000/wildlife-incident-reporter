@@ -222,6 +222,10 @@ def get_incidents():
     except Exception as e:
         return f"Error loading incidents: {str(e)}", 500
 
+@app.route('/offline')
+def offline():
+    return render_template('offline.html')
+
 @app.route('/export')
 def export_incidents():
     try:
