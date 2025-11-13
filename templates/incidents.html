@@ -82,12 +82,6 @@
         .export-btn:hover {
             background: #219a52;
         }
-        .csv-btn {
-            background: #e67e22;
-        }
-        .csv-btn:hover {
-            background: #d35400;
-        }
         .no-data {
             text-align: center;
             padding: 40px;
@@ -183,9 +177,6 @@
 
         <div class="actions">
             <button class="export-btn" onclick="window.location='/export'">
-                📊 Export to Excel
-            </button>
-            <button class="export-btn csv-btn" onclick="window.location='/export?format=csv'">
                 📄 Export to CSV
             </button>
         </div>
@@ -204,7 +195,6 @@
                     <th>Outcome</th>
                     <th>Injuries</th>
                     <th>Loss (Tsh)</th>
-                    <th>Evidence</th>
                 </tr>
             </thead>
             <tbody>
@@ -214,7 +204,7 @@
                     <td>{{ incident.crrt_member_name }}</td>
                     <td>
                         {{ incident.incident_date }}<br>
-                        <small>{{ incident.incident_time[:5] }}</small>
+                        <small>{{ incident.incident_time }}</small>
                     </td>
                     <td>
                         <small>
@@ -252,22 +242,16 @@
                     <td>
                         <strong>Tsh {{ "{:,.0f}".format(incident.estimated_loss) }}</strong>
                     </td>
-                    <td>
-                        {% if incident.image_filename %}
-                            <img src="{{ url_for('static', filename='uploads/' ~ incident.image_filename) }}" 
-                                 alt="Evidence" 
-                                 title="Click to view"
-                                 onclick="window.open(this.src, '_blank')"
-                                 style="cursor: pointer;"
-                                 onerror="this.style.display='none'">
-                        {% else %}
-                            <span style="color: #999; font-size: 12px;">No image</span>
-                        {% endif %}
-                    </td>
                 </tr>
                 {% endfor %}
             </tbody>
         </table>
+
+        <div class="actions">
+            <button class="export-btn" onclick="window.location='/export'">
+                📄 Export to CSV
+            </button>
+        </div>
 
         {% else %}
         <div class="no-data">
@@ -279,8 +263,6 @@
             </a>
         </div>
         {% endif %}
-
-        <!-- Remove duplicate export buttons from bottom -->
     </div>
 </body>
 </html>
