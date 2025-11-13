@@ -264,5 +264,72 @@
         </div>
         {% endif %}
     </div>
+    <script>
+// Show pending offline incidents
+async function loadPendingIncidents() {
+    if ('serviceWorker' in navigator && navigator.serviceWorker.controller) {
+        const offlineManager = {
+            async getPendingIncidents() {
+                if (!('indexedDB' in window)) {
+                    return JSON.parse(localStorage.getItem('pendingIncidents') || '[]');
+                }
+
+                return new Promise((resolve) => {
+                    const request = indexedDB.open('WildlifeIncidentsDB', 1);
+                    request.onsuccess = (event) => {
+                        const db = event.target.result;
+                        const transaction = db.transaction(['pendingIncidents'], 'readonly');
+                        const store = transaction.objectStore('pendingIncidents');
+                        const getAllRequest = store.getAll();
+                        getAllRequest.onsuccess = () => resolve(getAllRequest.result);
+                    };
+                    request.onerror = () => resolve([]);
+                });
+            }
+        };
+
+        const pending = await offlineManager.getPendingIncidents();
+        
+        if (pending.length > 0) {
+            // Create pending incidents section
+            const pendingSection = document.createElement('div');
+            pendingSection.innerHTML = `
+                <div style="background: #fff3cd; border: 1px solid #ffeaa7; padding: 15px; margin: 20px 0; border-radius: 5px;">
+                    <h3>📱 Pending Offline Incidents (${pending.length})</h3>
+                    <p><strong>Note:</strong> These incidents were recorded offline and will sync automatically when connection returns.</p>
+                    <button onclick="syncPendingIncidents()" style="background: #f39c12; color: white; border: none; padding: 10px 15px; border-radius: 4px; cursor: pointer;">
+                        🔄 Sync Now
+                    </button>
+                </div>
+            `;
+            
+            const table = document.querySelector('table');
+            if (table) {
+                table.parentNode.insertBefore(pendingSection, table);
+            }
+        }
+    }
+}
+
+// Manual sync function
+async function syncPendingIncidents() {
+    try {
+        const response = await fetch('/api/sync-pending', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' }
+        });
+        
+        if (response.ok) {
+            alert('Pending incidents synced successfully!');
+            window.location.reload();
+        }
+    } catch (error) {
+        alert('Sync failed. Please check your connection.');
+    }
+}
+
+// Load pending incidents when page loads
+document.addEventListener('DOMContentLoaded', loadPendingIncidents);
+</script>
 </body>
 </html>

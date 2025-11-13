@@ -333,5 +333,258 @@ function getLocation() {
 // Add scale control
 L.control.scale().addTo(map);
 </script>
+<script>
+// Offline functionality
+class OfflineManager {
+    constructor() {
+        this.dbName = 'WildlifeIncidentsDB';
+        this.storeName = 'pendingIncidents';
+        this.init();
+    }
+
+    async init() {
+        // Register service worker
+        if ('serviceWorker' in navigator) {
+            try {
+                await navigator.serviceWorker.register('/static/sw.js');
+                console.log('Service Worker registered');
+            } catch (error) {
+                console.log('Service Worker registration failed:', error);
+            }
+        }
+
+        // Try to sync pending incidents when coming online
+        window.addEventListener('online', () => this.syncPendingIncidents());
+    }
+
+    // Store incident locally when offline
+    async storeIncidentLocally(incidentData) {
+        if (!('indexedDB' in window)) {
+            return this.storeInLocalStorage(incidentData);
+        }
+
+        return new Promise((resolve, reject) => {
+            const request = indexedDB.open(this.dbName, 1);
+            
+            request.onerror = () => reject('IndexedDB not supported');
+            request.onsuccess = (event) => {
+                const db = event.target.result;
+                const transaction = db.transaction([this.storeName], 'readwrite');
+                const store = transaction.objectStore(this.storeName);
+                
+                const localId = Date.now().toString();
+                incidentData.local_id = localId;
+                
+                const addRequest = store.add(incidentData);
+                addRequest.onsuccess = () => resolve(localId);
+                addRequest.onerror = () => reject('Failed to store locally');
+            };
+            
+            request.onupgradeneeded = (event) => {
+                const db = event.target.result;
+                db.createObjectStore(this.storeName, { keyPath: 'local_id' });
+            };
+        });
+    }
+
+    // Fallback to localStorage
+    storeInLocalStorage(incidentData) {
+        const localId = Date.now().toString();
+        incidentData.local_id = localId;
+        
+        const pending = JSON.parse(localStorage.getItem('pendingIncidents') || '[]');
+        pending.push(incidentData);
+        localStorage.setItem('pendingIncidents', JSON.stringify(pending));
+        
+        return Promise.resolve(localId);
+    }
+
+    // Get all pending incidents
+    async getPendingIncidents() {
+        if (!('indexedDB' in window)) {
+            return JSON.parse(localStorage.getItem('pendingIncidents') || '[]');
+        }
+
+        return new Promise((resolve) => {
+            const request = indexedDB.open(this.dbName, 1);
+            request.onsuccess = (event) => {
+                const db = event.target.result;
+                const transaction = db.transaction([this.storeName], 'readonly');
+                const store = transaction.objectStore(this.storeName);
+                const getAllRequest = store.getAll();
+                
+                getAllRequest.onsuccess = () => resolve(getAllRequest.result);
+            };
+            request.onerror = () => resolve([]);
+        });
+    }
+
+    // Remove incident from local storage after successful sync
+    async removePendingIncident(localId) {
+        if (!('indexedDB' in window)) {
+            const pending = JSON.parse(localStorage.getItem('pendingIncidents') || '[]');
+            const filtered = pending.filter(inc => inc.local_id !== localId);
+            localStorage.setItem('pendingIncidents', JSON.stringify(filtered));
+            return;
+        }
+
+        return new Promise((resolve) => {
+            const request = indexedDB.open(this.dbName, 1);
+            request.onsuccess = (event) => {
+                const db = event.target.result;
+                const transaction = db.transaction([this.storeName], 'readwrite');
+                const store = transaction.objectStore(this.storeName);
+                store.delete(localId);
+                resolve();
+            };
+        });
+    }
+
+    // Sync all pending incidents when online
+    async syncPendingIncidents() {
+        const pending = await this.getPendingIncidents();
+        if (pending.length === 0) return;
+
+        try {
+            const response = await fetch('/api/sync-pending', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ incidents: pending })
+            });
+
+            const result = await response.json();
+            
+            if (result.success) {
+                // Remove synced incidents from local storage
+                for (const sync of result.synced) {
+                    await this.removePendingIncident(sync.local_id);
+                }
+                
+                // Show success message
+                this.showSyncStatus(`Synced ${result.synced.length} pending incidents`);
+                
+                // Refresh incidents page if we're on it
+                if (window.location.pathname === '/incidents') {
+                    window.location.reload();
+                }
+            }
+        } catch (error) {
+            console.error('Sync failed:', error);
+        }
+    }
+
+    showSyncStatus(message) {
+        // Create a temporary notification
+        const notification = document.createElement('div');
+        notification.style.cssText = `
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            background: #27ae60;
+            color: white;
+            padding: 15px;
+            border-radius: 5px;
+            z-index: 10000;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.3);
+        `;
+        notification.textContent = message;
+        document.body.appendChild(notification);
+        
+        setTimeout(() => notification.remove(), 3000);
+    }
+
+    // Check if we're online
+    isOnline() {
+        return navigator.onLine;
+    }
+}
+
+// Initialize offline manager
+const offlineManager = new OfflineManager();
+
+// Modify form submission for offline support
+document.addEventListener('DOMContentLoaded', function() {
+    const form = document.querySelector('form');
+    
+    form.addEventListener('submit', async function(e) {
+        e.preventDefault();
+        
+        const formData = new FormData(form);
+        const incidentData = {
+            start_time: formData.get('start_time'),
+            end_time: formData.get('end_time'),
+            crrt_member_name: formData.get('crrt_member_name'),
+            incident_date: formData.get('incident_date'),
+            incident_time: formData.get('incident_time'),
+            latitude: parseFloat(formData.get('latitude')),
+            longitude: parseFloat(formData.get('longitude')),
+            altitude: parseFloat(formData.get('altitude') || 0),
+            precision: parseFloat(formData.get('precision') || 0),
+            incident_type: formData.get('incident_type'),
+            elephants_observed: parseInt(formData.get('elephants_observed')),
+            response_noise: formData.has('response_noise'),
+            response_fire: formData.has('response_fire'),
+            response_chili: formData.has('response_chili'),
+            response_flashlight: formData.has('response_flashlight'),
+            response_other: formData.has('response_other'),
+            response_other_text: formData.get('response_other_text'),
+            response_outcome: formData.get('response_outcome'),
+            injuries_or_deaths: formData.get('injuries_or_deaths'),
+            estimated_loss: parseFloat(formData.get('estimated_loss')),
+            additional_comments: formData.get('additional_comments')
+        };
+
+        // Handle image separately if needed
+        const imageFile = formData.get('picture');
+        if (imageFile && imageFile.size > 0) {
+            // Convert image to base64 for offline storage
+            incidentData.image_data = await new Promise((resolve) => {
+                const reader = new FileReader();
+                reader.onload = e => resolve(e.target.result);
+                reader.readAsDataURL(imageFile);
+            });
+            incidentData.image_filename = imageFile.name;
+        }
+
+        try {
+            if (offlineManager.isOnline()) {
+                // Try to submit online first
+                const response = await fetch('/api/incidents', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(incidentData)
+                });
+
+                const result = await response.json();
+                
+                if (result.success) {
+                    // Success - redirect to incidents page
+                    window.location.href = '/incidents';
+                } else {
+                    throw new Error(result.error);
+                }
+            } else {
+                throw new Error('Offline - storing locally');
+            }
+        } catch (error) {
+            // Offline or network error - store locally
+            const localId = await offlineManager.storeIncidentLocally(incidentData);
+            
+            // Show offline success message
+            offlineManager.showSyncStatus('Incident saved offline. Will sync when connection returns.');
+            
+            // Clear form
+            form.reset();
+            
+            // Optionally redirect or show confirmation
+            setTimeout(() => {
+                if (confirm('Incident saved offline! Would you like to view pending incidents?')) {
+                    window.location.href = '/incidents';
+                }
+            }, 1000);
+        }
+    });
+});
+</script>
 </body>
 </html>
