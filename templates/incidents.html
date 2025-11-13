@@ -1,0 +1,286 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>View Wildlife Incidents</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 20px;
+            background-image: url('/static/wildlife_bg.jpg');
+            background-size: cover;
+            color: #333;
+        }
+        .container {
+            background: rgba(255,255,255,0.95);
+            padding: 30px;
+            border-radius: 15px;
+            box-shadow: 0 0 20px rgba(0,0,0,0.3);
+        }
+        h1 {
+            text-align: center;
+            color: #2c3e50;
+            margin-bottom: 20px;
+        }
+        nav {
+            text-align: center;
+            margin: 20px 0;
+        }
+        nav a {
+            margin: 0 10px;
+            padding: 10px 20px;
+            font-weight: bold;
+            color: white;
+            text-decoration: none;
+            background: #3498db;
+            border-radius: 5px;
+            transition: background 0.3s;
+        }
+        nav a:hover {
+            background: #2980b9;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin-top: 20px;
+            background: white;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+            font-size: 14px;
+        }
+        th, td {
+            border: 1px solid #ddd;
+            padding: 8px;
+            text-align: left;
+        }
+        th { 
+            background: #34495e; 
+            color: white;
+            font-weight: bold;
+        }
+        tr:nth-child(even) {
+            background: #f8f9fa;
+        }
+        tr:hover {
+            background: #e8f4f8;
+        }
+        img { 
+            max-width: 80px; 
+            max-height: 80px; 
+            border-radius: 4px;
+            border: 1px solid #ddd;
+        }
+        .export-btn {
+            background: #27ae60;
+            color: white;
+            padding: 12px 25px;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 16px;
+            margin: 10px 5px;
+            transition: background 0.3s;
+        }
+        .export-btn:hover {
+            background: #219a52;
+        }
+        .csv-btn {
+            background: #e67e22;
+        }
+        .csv-btn:hover {
+            background: #d35400;
+        }
+        .no-data {
+            text-align: center;
+            padding: 40px;
+            color: #666;
+            font-style: italic;
+        }
+        .actions {
+            text-align: center;
+            margin: 20px 0;
+        }
+        .stats {
+            background: #f8f9fa;
+            padding: 15px;
+            border-radius: 8px;
+            margin: 20px 0;
+            text-align: center;
+            border-left: 4px solid #3498db;
+        }
+        .stats h3 {
+            margin: 0 0 10px 0;
+            color: #2c3e50;
+        }
+        .stat-item {
+            display: inline-block;
+            margin: 0 15px;
+            padding: 10px;
+            background: white;
+            border-radius: 5px;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+        }
+        .stat-value {
+            font-size: 20px;
+            font-weight: bold;
+            color: #27ae60;
+        }
+        .stat-label {
+            font-size: 12px;
+            color: #666;
+        }
+        .badge {
+            padding: 3px 6px;
+            border-radius: 10px;
+            font-size: 10px;
+            font-weight: bold;
+            margin: 1px;
+        }
+        .danger-badge { background: #f8d7da; color: #721c24; }
+        .success-badge { background: #d4edda; color: #155724; }
+        .warning-badge { background: #fff3cd; color: #856404; }
+        .info-badge { background: #cce7ff; color: #004085; }
+        .response-badge { 
+            background: #e9ecef; 
+            color: #495057; 
+            font-size: 9px;
+            padding: 2px 4px;
+            margin: 1px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🐘 Wildlife Incident Reports</h1>
+        
+        <nav>
+            <a href="/">🏠 Home</a>
+            <a href="{{ url_for('report_incident') }}">📝 Report New Incident</a>
+        </nav>
+
+        {% if incidents %}
+        <div class="stats">
+            <h3>📈 Incident Statistics</h3>
+            <div class="stat-item">
+                <div class="stat-value">{{ incidents|length }}</div>
+                <div class="stat-label">Total Incidents</div>
+            </div>
+            <div class="stat-item">
+                <div class="stat-value">{{ incidents|sum(attribute='elephants_observed') }}</div>
+                <div class="stat-label">Total Elephants</div>
+            </div>
+            <div class="stat-item">
+                <div class="stat-value">Tsh {{ "{:,.0f}".format(incidents|sum(attribute='estimated_loss')) }}</div>
+                <div class="stat-label">Total Loss</div>
+            </div>
+            <div class="stat-item">
+                <div class="stat-value">
+                    {% set injury_count = incidents|selectattr('injuries_or_deaths', 'ne', 'No one injured')|list|length %}
+                    {{ injury_count }}
+                </div>
+                <div class="stat-label">Injury Cases</div>
+            </div>
+        </div>
+        {% endif %}
+
+        <div class="actions">
+            <button class="export-btn" onclick="window.location='/export'">
+                📊 Export to Excel
+            </button>
+            <button class="export-btn csv-btn" onclick="window.location='/export?format=csv'">
+                📄 Export to CSV
+            </button>
+        </div>
+
+        {% if incidents %}
+        <table>
+            <thead>
+                <tr>
+                    <th>ID</th>
+                    <th>CRRT Member</th>
+                    <th>Incident Date/Time</th>
+                    <th>Location</th>
+                    <th>Type</th>
+                    <th>Elephants</th>
+                    <th>Response Methods</th>
+                    <th>Outcome</th>
+                    <th>Injuries</th>
+                    <th>Loss (Tsh)</th>
+                    <th>Evidence</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for incident in incidents %}
+                <tr>
+                    <td><strong>#{{ incident.id }}</strong></td>
+                    <td>{{ incident.crrt_member_name }}</td>
+                    <td>
+                        {{ incident.incident_date }}<br>
+                        <small>{{ incident.incident_time[:5] }}</small>
+                    </td>
+                    <td>
+                        <small>
+                            📍 {{ "%.4f"|format(incident.latitude) }}, {{ "%.4f"|format(incident.longitude) }}
+                        </small>
+                    </td>
+                    <td>
+                        <span class="badge info-badge">{{ incident.incident_type }}</span>
+                    </td>
+                    <td>
+                        <strong>{{ incident.elephants_observed }} 🐘</strong>
+                    </td>
+                    <td>
+                        {% if incident.response_noise %}<span class="response-badge" title="Noise (shouting, banging)">🔊</span>{% endif %}
+                        {% if incident.response_fire %}<span class="response-badge" title="Fire or torch use">🔥</span>{% endif %}
+                        {% if incident.response_chili %}<span class="response-badge" title="Chili smoke or chili bombs">🌶️</span>{% endif %}
+                        {% if incident.response_flashlight %}<span class="response-badge" title="Flashlight or spotlight">💡</span>{% endif %}
+                        {% if incident.response_other %}<span class="response-badge" title="Other method">📌</span>{% endif %}
+                    </td>
+                    <td>
+                        <span class="badge 
+                            {% if 'prevented' in incident.response_outcome %}success-badge
+                            {% elif 'significant' in incident.response_outcome %}danger-badge
+                            {% else %}warning-badge{% endif %}">
+                            {{ incident.response_outcome }}
+                        </span>
+                    </td>
+                    <td>
+                        <span class="badge 
+                            {% if 'No one' in incident.injuries_or_deaths %}success-badge
+                            {% else %}danger-badge{% endif %}">
+                            {{ incident.injuries_or_deaths }}
+                        </span>
+                    </td>
+                    <td>
+                        <strong>Tsh {{ "{:,.0f}".format(incident.estimated_loss) }}</strong>
+                    </td>
+                    <td>
+                        {% if incident.image_filename %}
+                            <img src="{{ url_for('static', filename='uploads/' ~ incident.image_filename) }}" 
+                                 alt="Evidence" 
+                                 title="Click to view"
+                                 onclick="window.open(this.src, '_blank')"
+                                 style="cursor: pointer;"
+                                 onerror="this.style.display='none'">
+                        {% else %}
+                            <span style="color: #999; font-size: 12px;">No image</span>
+                        {% endif %}
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+
+        {% else %}
+        <div class="no-data">
+            <h3>📭 No incidents reported yet</h3>
+            <p>There are no wildlife incidents in the database.</p>
+            <a href="{{ url_for('report_incident') }}" 
+               style="display: inline-block; margin-top: 15px; padding: 12px 25px; background: #3498db; color: white; text-decoration: none; border-radius: 5px; font-weight: bold;">
+                ➕ Report First Incident
+            </a>
+        </div>
+        {% endif %}
+
+        <!-- Remove duplicate export buttons from bottom -->
+    </div>
+</body>
+</html>

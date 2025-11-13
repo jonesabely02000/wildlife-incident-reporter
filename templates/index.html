@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Wildlife Incident Reporting</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            background-image: url('/static/wildlife.jpg');
+            background-size: cover;
+            color: #333;
+            padding: 20px;
+        }
+        nav a {
+            margin-right: 15px;
+            font-weight: bold;
+            color: white;
+            text-decoration: none;
+        }
+        form {
+            background: rgba(255,255,255,0.9);
+            padding: 20px;
+            border-radius: 10px;
+            max-width: 700px;
+        }
+        label { display: block; margin-top: 10px; }
+        input, select, textarea { width: 100%; padding: 5px; }
+        #map { height: 150px; width: 200px; display:inline-block; margin-left: 20px; vertical-align: top; }
+    </style>
+</head>
+<body>
+    <h1>Welcome to Wildlife Incident Reporting</h1>
+    <nav>
+        <a href="/incidents">View Incidents</a>
+        <a href="/">Report Incident</a>
+    </nav>
+
+    <h2>Report Incident</h2>
+    <form id="reportForm" enctype="multipart/form-data">
+        <label>Village</label>
+        <input type="text" name="village" required>
+
+        <label>Latitude</label>
+        <input type="number" step="any" name="latitude" required>
+
+        <label>Longitude</label>
+        <input type="number" step="any" name="longitude" required>
+
+        <label>Damage Type</label>
+        <select name="damage_type">
+            <option value="crop">Crop</option>
+            <option value="livestock">Livestock</option>
+            <option value="property">Property</option>
+        </select>
+
+        <label>Estimated Loss</label>
+        <input type="number" step="any" name="estimated_loss">
+
+        <label>Reported By</label>
+        <input type="text" name="reported_by">
+
+        <label>Remarks</label>
+        <textarea name="remarks"></textarea>
+
+        <label>Attach Incident Picture</label>
+        <input type="file" name="image">
+
+        <button type="submit" style="margin-top:10px;">Submit</button>
+    </form>
+
+    <script>
+        document.getElementById('reportForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const formData = new FormData(e.target);
+            const response = await fetch('/report', {
+                method: 'POST',
+                body: formData
+            });
+            const result = await response.json();
+            alert('Incident submitted with ID: ' + result.id);
+            e.target.reset();
+        });
+    </script>
+</body>
+</html>

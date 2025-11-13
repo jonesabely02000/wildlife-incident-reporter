@@ -1,0 +1,367 @@
+Ah! Now it’s clear: you have four files in your project:
+
+
+app.py → main Flask app
+
+
+home.html → home page
+
+
+report.html → form for reporting incidents
+
+
+incidents.html → table view of reported incidents
+
+
+You want everything fully updated and working together: navigation, persistent SQLite, image upload, Excel export, background images, map for location, etc.
+Here’s the correct complete setup for all files.
+
+1️⃣ app.py
+from flask import Flask, render_template, request, jsonify, send_file, redirect, url_for
+from flask_sqlalchemy import SQLAlchemy
+from flask_migrate import Migrate
+import os
+import pandas as pd
+from werkzeug.utils import secure_filename
+
+app = Flask(__name__)
+app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///incidents.db'
+app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
+app.config['UPLOAD_FOLDER'] = os.path.join('static', 'uploads')
+os.makedirs(app.config['UPLOAD_FOLDER'], exist_ok=True)
+
+db = SQLAlchemy(app)
+migrate = Migrate(app, db)
+
+class Incident(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    village = db.Column(db.String(100), nullable=False)
+    latitude = db.Column(db.Float, nullable=False)
+    longitude = db.Column(db.Float, nullable=False)
+    damage_type = db.Column(db.String(50), nullable=False)
+    estimated_loss = db.Column(db.Float, nullable=False)
+    reported_by = db.Column(db.String(100), nullable=False)
+    remarks = db.Column(db.Text, nullable=True)
+    image_filename = db.Column(db.String(200), nullable=True)
+
+with app.app_context():
+    db.create_all()
+
+@app.route('/')
+def home():
+    return render_template('home.html')
+
+@app.route('/report', methods=['GET', 'POST'])
+def report_incident():
+    if request.method == 'POST':
+        village = request.form.get('village')
+        latitude = request.form.get('latitude', type=float)
+        longitude = request.form.get('longitude', type=float)
+        damage_type = request.form.get('damage_type')
+        estimated_loss = request.form.get('estimated_loss', type=float)
+        reported_by = request.form.get('reported_by')
+        remarks = request.form.get('remarks')
+
+        # Handle image upload
+        image = request.files.get('picture')
+        filename = None
+        if image:
+            filename = secure_filename(image.filename)
+            image.save(os.path.join(app.config['UPLOAD_FOLDER'], filename))
+
+        incident = Incident(
+            village=village,
+            latitude=latitude,
+            longitude=longitude,
+            damage_type=damage_type,
+            estimated_loss=estimated_loss,
+            reported_by=reported_by,
+            remarks=remarks,
+            image_filename=filename
+        )
+        db.session.add(incident)
+        db.session.commit()
+        return redirect(url_for('get_incidents'))
+
+    return render_template('report.html')
+
+@app.route('/incidents')
+def get_incidents():
+    incidents = Incident.query.all()
+    return render_template('incidents.html', incidents=incidents)
+
+@app.route('/export')
+def export_incidents():
+    incidents = Incident.query.all()
+    data = []
+    for i in incidents:
+        data.append({
+            'ID': i.id,
+            'Village': i.village,
+            'Latitude': i.latitude,
+            'Longitude': i.longitude,
+            'Damage Type': i.damage_type,
+            'Estimated Loss': i.estimated_loss,
+            'Reported By': i.reported_by,
+            'Remarks': i.remarks,
+            'Image Filename': i.image_filename
+        })
+    df = pd.DataFrame(data)
+    filepath = os.path.join('static', 'incidents.xlsx')
+    df.to_excel(filepath, index=False)
+    return send_file(filepath, as_attachment=True)
+
+if __name__ == '__main__':
+    app.run(debug=True)
+
+
+2️⃣ templates/home.html
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Wildlife Incident Reporting</title>
+    <style>
+        body { 
+            font-family: Arial, sans-serif; 
+            margin: 20px; 
+            background-image: url('/static/wildlife_bg.jpg'); 
+            background-size: cover; 
+            background-attachment: fixed; 
+            color: white;
+        }
+        nav a { 
+            margin-right: 20px; 
+            font-weight: bold; 
+            color: white; 
+            text-decoration: none;
+        }
+    </style>
+</head>
+<body>
+    <h1>Welcome to Wildlife Incident Reporting</h1>
+    <nav>
+        <a href="{{ url_for('get_incidents') }}">View Incidents</a>
+        <a href="{{ url_for('report_incident') }}">Report Incident</a>
+    </nav>
+    <p>Use the links above to view or report wildlife incidents.</p>
+</body>
+</html>
+
+
+3️⃣ templates/report.html
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Report Incident</title>
+<style>
+    body { 
+        font-family: Arial, sans-serif; 
+        margin: 20px; 
+        background-image: url('/static/wildlife_bg.jpg'); 
+        background-size: cover; 
+        background-attachment: fixed; 
+        color: black;
+    }
+    label { display: block; margin-top: 10px; }
+    input, select, textarea { width: 200px; }
+    #map { width: 300px; height: 200px; display: inline-block; margin-left: 20px; }
+    .form-container { display: flex; align-items: flex-start; background: rgba(255,255,255,0.9); padding: 10px; border-radius: 10px; }
+    .form-fields { flex: 1; }
+</style>
+<link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css"/>
+<script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
+</head>
+<body>
+<h1>Report New Wildlife Incident</h1>
+<div class="form-container">
+    <div class="form-fields">
+        <form method="POST" enctype="multipart/form-data">
+            <label>Village</label>
+            <input type="text" name="village" required>
+
+            <label>Latitude</label>
+            <input type="number" step="any" name="latitude" id="latitude" required>
+
+            <label>Longitude</label>
+            <input type="number" step="any" name="longitude" id="longitude" required>
+
+            <button type="button" onclick="getLocation()">Use Current Location</button>
+
+            <label>Damage Type</label>
+            <select name="damage_type" required>
+                <option value="crop">Crop</option>
+                <option value="livestock">Livestock</option>
+                <option value="property">Property</option>
+            </select>
+
+            <label>Estimated Loss</label>
+            <input type="number" step="any" name="estimated_loss" required>
+
+            <label>Reported By</label>
+            <input type="text" name="reported_by" required>
+
+            <label>Remarks</label>
+            <textarea name="remarks"></textarea>
+
+            <label>Attach Picture</label>
+            <input type="file" name="picture" accept="image/*">
+
+            <br><br>
+            <input type="submit" value="Submit">
+        </form>
+    </div>
+    <div id="map"></div>
+</div>
+
+<script>
+var map = L.map('map').setView([0, 0], 2);
+L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    attribution: '&copy; OpenStreetMap contributors'
+}).addTo(map);
+var marker;
+
+function getLocation() {
+    if (navigator.geolocation) {
+        navigator.geolocation.getCurrentPosition(function(position) {
+            var lat = position.coords.latitude;
+            var lng = position.coords.longitude;
+            document.getElementById('latitude').value = lat;
+            document.getElementById('longitude').value = lng;
+
+            if (marker) map.removeLayer(marker);
+            marker = L.marker([lat, lng]).addTo(map);
+            map.setView([lat, lng], 15);
+        });
+    } else {
+        alert("Geolocation not supported.");
+    }
+}
+</script>
+</body>
+</html>
+
+
+4️⃣ templates/incidents.html
+<!DOCTYPE html>
+<html>
+<head>
+    <title>View Incidents</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            background-image: url('/static/wildlife_bg.jpg');
+            background-size: cover;
+            color: #333;
+            padding: 20px;
+        }
+        nav a {
+            margin-right: 15px;
+            font-weight: bold;
+            color: white;
+            text-decoration: none;
+        }
+        table {
+            background: rgba(255,255,255,0.9);
+            border-collapse: collapse;
+            width: 100%;
+            margin-top: 15px;
+        }
+        th, td {
+            border: 1px solid #999;
+            padding: 8px;
+            text-align: left;
+        }
+        th { background: #eee; }
+        img { max-width: 100px; max-height: 100px; }
+        button { margin-top: 15px; padding: 10px; }
+    </style>
+</head>
+<body>
+    <h1>Reported Wildlife Incidents</h1>
+    <nav>
+        <a href="/">Home</a>
+        <a href="{{ url_for('report_incident') }}">Report Incident</a>
+    </nav>
+
+    <button onclick="window.location='/export'">Export to Excel</button>
+
+    <table>
+        <tr>
+            <th>ID</th>
+            <th>Village</th>
+            <th>Latitude</th>
+            <th>Longitude</th>
+            <th>Damage Type</th>
+            <th>Estimated Loss</th>
+            <th>Reported By</th>
+            <th>Remarks</th>
+            <th>Image</th>
+        </tr>
+        {% for incident in incidents %}
+        <tr>
+            <td>{{ incident.id }}</td>
+            <td>{{ incident.village }}</td>
+            <td>{{ incident.latitude }}</td>
+            <td>{{ incident.longitude }}</td>
+            <td>{{ incident.damage_type }}</td>
+            <td>{{ incident.estimated_loss }}</td>
+            <td>{{ incident.reported_by }}</td>
+            <td>{{ incident.remarks }}</td>
+            <td>
+                {% if incident.image_filename %}
+                    <img src="{{ url_for('static', filename='uploads/' ~ incident.image_filename) }}">
+                {% endif %}
+            </td>
+        </tr>
+        {% endfor %}
+    </table>
+</body>
+</html>
+
+
+✅ Notes
+
+
+Make sure your folder structure is:
+
+
+website/
+│
+├─ app.py
+├─ templates/
+│   ├─ home.html
+│   ├─ report.html
+│   └─ incidents.html
+└─ static/
+    ├─ wildlife_bg.jpg
+    └─ uploads/   <-- uploaded images stored here
+
+
+
+Access URLs:
+
+
+
+
+Home: http://127.0.0.1:5000/
+
+
+Report: http://127.0.0.1:5000/report
+
+
+View Incidents: http://127.0.0.1:5000/incidents
+
+
+
+
+Excel export button in incidents.html works.
+
+
+The map is now small and on the right of the latitude/longitude fields in the report form.
+
+
+
+If you want, I can also make the map interactive so the user clicks anywhere on it and the lat/lng auto-fills, making it more user-friendly.
+Do you want me to add that?

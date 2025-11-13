@@ -1,0 +1,337 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Report Wildlife Incident</title>
+<style>
+    body { 
+        font-family: Arial, sans-serif; 
+        margin: 20px; 
+        background-image: url('/static/wildlife_bg.jpg'); 
+        background-size: cover; 
+        background-attachment: fixed; 
+        color: #333;
+    }
+    .container {
+        background: rgba(255,255,255,0.95);
+        padding: 30px;
+        border-radius: 15px;
+        max-width: 1200px;
+        margin: 0 auto;
+        box-shadow: 0 0 20px rgba(0,0,0,0.3);
+    }
+    h1 {
+        text-align: center;
+        color: #2c3e50;
+        margin-bottom: 30px;
+    }
+    label { 
+        display: block; 
+        margin-top: 15px; 
+        font-weight: bold;
+        color: #2c3e50;
+    }
+    input, select, textarea { 
+        width: 100%; 
+        max-width: 300px;
+        padding: 8px;
+        margin-top: 5px;
+        border: 1px solid #ddd;
+        border-radius: 4px;
+        box-sizing: border-box;
+    }
+    #map { 
+        width: 100%; 
+        height: 400px; 
+        border: 2px solid #3498db; 
+        border-radius: 8px;
+    }
+    .form-container { 
+        display: flex; 
+        gap: 40px;
+        align-items: flex-start; 
+    }
+    .form-fields { 
+        flex: 1; 
+        min-width: 400px;
+    }
+    .map-container { 
+        flex: 1; 
+        min-width: 400px;
+    }
+    .map-container h3 {
+        color: #2c3e50;
+        margin-bottom: 10px;
+    }
+    button { 
+        margin: 10px 5px 10px 0; 
+        padding: 10px 15px; 
+        background: #3498db;
+        color: white;
+        border: none;
+        border-radius: 4px;
+        cursor: pointer;
+        transition: background 0.3s;
+    }
+    button:hover {
+        background: #2980b9;
+    }
+    input[type="submit"] {
+        background: #27ae60;
+        color: white;
+        padding: 12px 30px;
+        border: none;
+        border-radius: 4px;
+        cursor: pointer;
+        font-size: 16px;
+        margin-top: 20px;
+        width: auto;
+    }
+    input[type="submit"]:hover {
+        background: #219a52;
+    }
+    .form-section {
+        background: #f8f9fa;
+        padding: 20px;
+        border-radius: 8px;
+        margin-bottom: 20px;
+        border-left: 4px solid #3498db;
+    }
+    .form-section h3 {
+        margin-top: 0;
+        color: #2c3e50;
+        border-bottom: 1px solid #ddd;
+        padding-bottom: 10px;
+    }
+    .checkbox-group {
+        margin: 10px 0;
+    }
+    .checkbox-group label {
+        display: inline-block;
+        margin-left: 5px;
+        font-weight: normal;
+    }
+    .gps-fields {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 10px;
+    }
+    .gps-fields input {
+        max-width: 100%;
+    }
+</style>
+<link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css"/>
+<script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
+</head>
+<body>
+    <div class="container">
+        <h1>🐘 Wildlife Incident Report Form</h1>
+        <div class="form-container">
+            <div class="form-fields">
+                <form method="POST" enctype="multipart/form-data">
+                    
+                    <!-- CRRT Member Details -->
+                    <div class="form-section">
+                        <h3>CRRT Member Details</h3>
+                        <label>Start Time</label>
+                        <input type="datetime-local" name="start_time" required>
+
+                        <label>End Time</label>
+                        <input type="datetime-local" name="end_time" required>
+
+                        <label>Name of CRRT Member</label>
+                        <input type="text" name="crrt_member_name" required placeholder="Enter your name">
+                    </div>
+
+                    <!-- Incident Details -->
+                    <div class="form-section">
+                        <h3>Incident Details</h3>
+                        <label>Date of Incident</label>
+                        <input type="date" name="incident_date" required>
+
+                        <label>Time of Incident</label>
+                        <input type="time" name="incident_time" required>
+                    </div>
+
+                    <!-- GPS Location -->
+                    <div class="form-section">
+                        <h3>GPS Location</h3>
+                        <div class="gps-fields">
+                            <div>
+                                <label>Latitude</label>
+                                <input type="number" step="any" name="latitude" id="latitude" required>
+                            </div>
+                            <div>
+                                <label>Longitude</label>
+                                <input type="number" step="any" name="longitude" id="longitude" required>
+                            </div>
+                            <div>
+                                <label>Altitude (meters)</label>
+                                <input type="number" step="any" name="altitude" id="altitude" value="0">
+                            </div>
+                            <div>
+                                <label>Precision</label>
+                                <input type="number" step="any" name="precision" id="precision" value="0">
+                            </div>
+                        </div>
+                        <button type="button" onclick="getLocation()">📍 Use Current Location</button>
+                    </div>
+
+                    <!-- Incident Information -->
+                    <div class="form-section">
+                        <h3>Incident Information</h3>
+                        <label>Type of Incident</label>
+                        <select name="incident_type" required>
+                            <option value="">Select incident type</option>
+                            <option value="Elephants seen near village">Elephants seen near village</option>
+                            <option value="Crop raiding">Crop raiding</option>
+                            <option value="Property damage">Property damage</option>
+                            <option value="Human injury">Human injury</option>
+                            <option value="Human death">Human death</option>
+                            <option value="Elephant death">Elephant death</option>
+                            <option value="Other">Other</option>
+                        </select>
+
+                        <label>Number of Elephants Observed</label>
+                        <input type="number" name="elephants_observed" min="0" required>
+                    </div>
+
+                    <!-- Response Methods -->
+                    <div class="form-section">
+                        <h3>Response Methods Used</h3>
+                        <div class="checkbox-group">
+                            <input type="checkbox" name="response_noise" id="response_noise">
+                            <label for="response_noise">Noise (shouting, banging)</label>
+                        </div>
+                        <div class="checkbox-group">
+                            <input type="checkbox" name="response_fire" id="response_fire">
+                            <label for="response_fire">Fire or torch use</label>
+                        </div>
+                        <div class="checkbox-group">
+                            <input type="checkbox" name="response_chili" id="response_chili">
+                            <label for="response_chili">Chili smoke or chili bombs</label>
+                        </div>
+                        <div class="checkbox-group">
+                            <input type="checkbox" name="response_flashlight" id="response_flashlight">
+                            <label for="response_flashlight">Flashlight or spotlight</label>
+                        </div>
+                        <div class="checkbox-group">
+                            <input type="checkbox" name="response_other" id="response_other">
+                            <label for="response_other">Other (specify)</label>
+                            <input type="text" name="response_other_text" placeholder="Specify other method">
+                        </div>
+                    </div>
+
+                    <!-- Response Outcome -->
+                    <div class="form-section">
+                        <h3>Response Outcome</h3>
+                        <label>Response Outcome</label>
+                        <select name="response_outcome" required>
+                            <option value="">Select outcome</option>
+                            <option value="Elephants left, damage prevented">Elephants left, damage prevented</option>
+                            <option value="Some damage occurred before elephants left">Some damage occurred before elephants left</option>
+                            <option value="Elephants not deterred, significant damage">Elephants not deterred, significant damage</option>
+                            <option value="Other">Other</option>
+                        </select>
+
+                        <label>Was anyone injured or killed?</label>
+                        <select name="injuries_or_deaths" required>
+                            <option value="No one injured">No one injured</option>
+                            <option value="Yes — someone was injured">Yes — someone was injured</option>
+                            <option value="Yes — someone was killed">Yes — someone was killed</option>
+                            <option value="Unknown">Unknown</option>
+                        </select>
+
+                        <label>Estimated Loss (Tsh)</label>
+                        <input type="number" name="estimated_loss" min="0" required placeholder="Enter amount in Tsh">
+                    </div>
+
+                    <!-- Additional Information -->
+                    <div class="form-section">
+                        <h3>Additional Information</h3>
+                        <label>Upload Photos (optional)</label>
+                        <input type="file" name="picture" accept="image/*">
+
+                        <label>Additional Comments</label>
+                        <textarea name="additional_comments" rows="4" placeholder="Any additional comments or observations..."></textarea>
+                    </div>
+
+                    <input type="submit" value="Submit Incident Report">
+                </form>
+            </div>
+            
+            <div class="map-container">
+                <h3>Select Location on Map</h3>
+                <div id="map"></div>
+                <p style="text-align: center; margin-top: 10px; color: #666;">
+                    Click on the map to set location coordinates automatically
+                </p>
+            </div>
+        </div>
+    </div>
+
+<script>
+// Initialize map
+var map = L.map('map').setView([-3.4034, 36.8005], 10);
+L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    attribution: '&copy; OpenStreetMap contributors'
+}).addTo(map);
+
+var marker;
+
+// Click on map to set coordinates
+map.on('click', function(e) {
+    var lat = e.latlng.lat;
+    var lng = e.latlng.lng;
+    
+    document.getElementById('latitude').value = lat.toFixed(6);
+    document.getElementById('longitude').value = lng.toFixed(6);
+    
+    // Update marker
+    if (marker) {
+        map.removeLayer(marker);
+    }
+    marker = L.marker([lat, lng]).addTo(map)
+        .bindPopup("Selected location: " + lat.toFixed(6) + ", " + lng.toFixed(6))
+        .openPopup();
+    
+    // Center map on clicked location
+    map.setView([lat, lng], map.getZoom());
+});
+
+function getLocation() {
+    if (navigator.geolocation) {
+        navigator.geolocation.getCurrentPosition(function(position) {
+            var lat = position.coords.latitude;
+            var lng = position.coords.longitude;
+            var alt = position.coords.altitude || 0;
+            var acc = position.coords.accuracy || 0;
+            
+            document.getElementById('latitude').value = lat.toFixed(6);
+            document.getElementById('longitude').value = lng.toFixed(6);
+            document.getElementById('altitude').value = alt.toFixed(1);
+            document.getElementById('precision').value = acc.toFixed(1);
+
+            // Update marker
+            if (marker) {
+                map.removeLayer(marker);
+            }
+            marker = L.marker([lat, lng]).addTo(map)
+                .bindPopup("Current location: " + lat.toFixed(6) + ", " + lng.toFixed(6))
+                .openPopup();
+            
+            // Center map on current location
+            map.setView([lat, lng], 15);
+        }, function(error) {
+            alert("Error getting location: " + error.message);
+        });
+    } else {
+        alert("Geolocation is not supported by this browser.");
+    }
+}
+
+// Add scale control
+L.control.scale().addTo(map);
+</script>
+</body>
+</html>
