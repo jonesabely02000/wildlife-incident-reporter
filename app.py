@@ -8,7 +8,13 @@ import csv
 from datetime import datetime
 
 app = Flask(__name__)
-app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///incidents.db'
+
+# Database configuration for Render/Heroku - MUST BE AT THE TOP
+if os.environ.get('DATABASE_URL'):
+    app.config['SQLALCHEMY_DATABASE_URI'] = os.environ['DATABASE_URL'].replace("postgres://", "postgresql://", 1)
+else:
+    app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///incidents.db'
+
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 app.config['UPLOAD_FOLDER'] = os.path.join('static', 'uploads')
 app.config['EXPORT_FOLDER'] = os.path.join('static', 'exports')
@@ -62,7 +68,6 @@ class Incident(db.Model):
 
 # Drop and recreate all tables
 with app.app_context():
-    db.drop_all()
     db.create_all()
     print("Database tables created successfully!")
 
@@ -243,4 +248,4 @@ def export_incidents():
             return redirect(url_for('export_incidents', format='csv'))
 
 if __name__ == '__main__':
-    app.run(debug=True)
+    app.run(host='0.0.0.0', port=5000, debug=False)
