@@ -1,17 +1,16 @@
-from flask import Flask, render_template, request, jsonify, redirect, url_for, flash
+from flask import Flask, render_template, request, jsonify, redirect, url_for, flash, session
 from flask_sqlalchemy import SQLAlchemy
 from datetime import datetime
 import os
-import math
 
 app = Flask(__name__)
-app.config['SECRET_KEY'] = 'dev-key-123'
+app.config['SECRET_KEY'] = 'dev-key-123-change-in-production'
 app.config['SQLALCHEMY_DATABASE_URI'] = os.environ.get('DATABASE_URL', 'sqlite:///wildlife.db')
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
 db = SQLAlchemy(app)
 
-# Simple User model
+# User model
 class User(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     email = db.Column(db.String(120), unique=True, nullable=False)
@@ -30,15 +29,24 @@ class Incident(db.Model):
     reported_by = db.Column(db.String(120), nullable=False)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
-# Simple session management
-current_user_email = None
-
+# Helper function to get current user
 def get_current_user():
-    if current_user_email:
-        return User.query.filter_by(email=current_user_email).first()
+    if 'user_email' in session:
+        return User.query.filter_by(email=session['user_email']).first()
     return None
 
-# Initialize database with error handling
+# Login required decorator
+def login_required(f):
+    from functools import wraps
+    @wraps(f)
+    def decorated_function(*args, **kwargs):
+        if 'user_email' not in session:
+            flash('Please login first', 'error')
+            return redirect(url_for('login'))
+        return f(*args, **kwargs)
+    return decorated_function
+
+# Initialize database
 def init_db():
     with app.app_context():
         try:
@@ -59,7 +67,6 @@ def init_db():
                 
         except Exception as e:
             print(f"Database initialization error: {str(e)}")
-            # Try to continue anyway
 
 # Routes
 @app.route('/')
@@ -73,33 +80,25 @@ def home():
     return render_template('home.html', user=user)
 
 @app.route('/view-incidents')
+@login_required
 def view_incidents():
     user = get_current_user()
-    if not user:
-        flash('Please login first', 'error')
-        return redirect(url_for('login'))
     return render_template('incidents.html', user=user)
 
 @app.route('/report-incident')
+@login_required
 def report_incident():
     user = get_current_user()
-    if not user:
-        flash('Please login first', 'error')
-        return redirect(url_for('login'))
     return render_template('report.html', user=user)
 
 @app.route('/predictions')
+@login_required
 def predictions():
     user = get_current_user()
-    if not user:
-        flash('Please login first', 'error')
-        return redirect(url_for('login'))
     return render_template('predictions.html', user=user)
 
 @app.route('/login', methods=['GET', 'POST'])
 def login():
-    global current_user_email
-    
     if request.method == 'POST':
         email = request.form.get('email', '').strip()
         password = request.form.get('password', '')
@@ -108,18 +107,21 @@ def login():
         
         user = User.query.filter_by(email=email, password=password).first()
         if user:
-            current_user_email = email
+            session['user_email'] = email
+            session.permanent = True
             flash('Login successful!', 'success')
             return redirect(url_for('home'))
         else:
             flash('Invalid email or password', 'error')
     
+    # If user is already logged in, redirect to home
+    if get_current_user():
+        return redirect(url_for('home'))
+    
     return render_template('login.html')
 
 @app.route('/register', methods=['GET', 'POST'])
 def register():
-    global current_user_email
-    
     if request.method == 'POST':
         email = request.form.get('email', '').strip().lower()
         password = request.form.get('password', '')
@@ -149,7 +151,8 @@ def register():
             db.session.add(user)
             db.session.commit()
             
-            current_user_email = email
+            session['user_email'] = email
+            session.permanent = True
             flash('Registration successful!', 'success')
             return redirect(url_for('home'))
         except Exception as e:
@@ -157,12 +160,14 @@ def register():
             print(f"Registration error: {str(e)}")
             flash('Registration failed. Please try again.', 'error')
     
+    # If user is already logged in, redirect to home
+    if get_current_user():
+        return redirect(url_for('home'))
+    
     return render_template('register.html')
 
 @app.route('/login-guest')
 def login_guest():
-    global current_user_email
-    
     print("Guest login attempt")
     
     try:
@@ -178,7 +183,8 @@ def login_guest():
         else:
             print("Using existing guest user")
         
-        current_user_email = guest_email
+        session['user_email'] = guest_email
+        session.permanent = True
         flash('Logged in as guest!', 'success')
         return redirect(url_for('home'))
         
@@ -189,17 +195,15 @@ def login_guest():
 
 @app.route('/logout')
 def logout():
-    global current_user_email
-    current_user_email = None
+    session.pop('user_email', None)
     flash('Logged out successfully', 'success')
     return redirect(url_for('index'))
 
 # API Routes
 @app.route('/api/import-incidents', methods=['POST'])
+@login_required
 def import_incidents():
     user = get_current_user()
-    if not user:
-        return jsonify({'error': 'Please login first'}), 401
     
     try:
         file = request.files['file']
@@ -238,10 +242,9 @@ def import_incidents():
         return jsonify({'error': f'Import failed: {str(e)}'}), 500
 
 @app.route('/api/generate-predictions', methods=['GET'])
+@login_required
 def generate_predictions():
     user = get_current_user()
-    if not user:
-        return jsonify({'error': 'Please login first'}), 401
     
     incidents = Incident.query.filter_by(reported_by=user.email).all()
     
@@ -262,10 +265,9 @@ def generate_predictions():
     return jsonify({'predictions': predictions})
 
 @app.route('/api/generate-hotspots', methods=['GET'])
+@login_required
 def generate_hotspots():
     user = get_current_user()
-    if not user:
-        return jsonify({'error': 'Please login first'}), 401
     
     incidents = Incident.query.filter_by(reported_by=user.email).all()
     
@@ -293,10 +295,9 @@ def generate_hotspots():
     return jsonify({'hotspots': hotspots})
 
 @app.route('/api/statistics', methods=['GET'])
+@login_required
 def get_statistics():
     user = get_current_user()
-    if not user:
-        return jsonify({'error': 'Please login first'}), 401
     
     total_incidents = Incident.query.filter_by(reported_by=user.email).count()
     
