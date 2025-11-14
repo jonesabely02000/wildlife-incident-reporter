@@ -1,514 +1,421 @@
-from flask import Flask, render_template, request, send_file, redirect, url_for, jsonify, flash
+from flask import Flask, render_template, request, jsonify, session, redirect, url_for, flash
 from flask_sqlalchemy import SQLAlchemy
 from flask_login import LoginManager, UserMixin, login_user, logout_user, login_required, current_user
+from werkzeug.security import generate_password_hash, check_password_hash
+from datetime import datetime, timedelta
 import os
-import csv
-from datetime import datetime
-from io import BytesIO, StringIO
 import json
+import math
+from sqlalchemy import func
 
-# Get the directory of the current script
-base_dir = os.path.abspath(os.path.dirname(__file__))
-
-app = Flask(__name__, 
-    static_folder=os.path.join(base_dir, 'static'),
-    template_folder=os.path.join(base_dir, 'templates')
-)
-
-# Configuration
-app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', 'dev-key-change-in-production')
-app.config['SQLALCHEMY_DATABASE_URI'] = os.environ.get('DATABASE_URL', 'sqlite:///incidents.db').replace('postgres://', 'postgresql://')
+app = Flask(__name__)
+app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', 'dev-secret-key-change-in-production')
+app.config['SQLALCHEMY_DATABASE_URI'] = os.environ.get('DATABASE_URL', 'sqlite:///wildlife.db')
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
 db = SQLAlchemy(app)
-login_manager = LoginManager(app)
+login_manager = LoginManager()
+login_manager.init_app(app)
 login_manager.login_view = 'login'
-login_manager.login_message = 'Please log in to access this page.'
+login_manager.login_message_category = 'info'
 
-# User Model
+# Database Models
 class User(UserMixin, db.Model):
     id = db.Column(db.Integer, primary_key=True)
-    email = db.Column(db.String(100), unique=True, nullable=False)
-    password = db.Column(db.String(100), nullable=False)
-    verified = db.Column(db.Boolean, default=True)  # Auto-verified for demo
-    created_at = db.Column(db.DateTime, default=datetime.now)
+    email = db.Column(db.String(120), unique=True, nullable=False)
+    password_hash = db.Column(db.String(128))
+    verified = db.Column(db.Boolean, default=False)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+    def set_password(self, password):
+        self.password_hash = generate_password_hash(password)
+
+    def check_password(self, password):
+        return check_password_hash(self.password_hash, password)
 
 class Incident(db.Model):
     id = db.Column(db.Integer, primary_key=True)
-    # CRRT Member Details - ALL REQUIRED FIELDS
-    start_time = db.Column(db.String(50), nullable=False, default=datetime.now().strftime('%Y-%m-%d %H:%M'))
-    end_time = db.Column(db.String(50), nullable=False, default=datetime.now().strftime('%Y-%m-%d %H:%M'))
-    crrt_member_name = db.Column(db.String(100), nullable=False)
-    
-    # Incident Details
-    incident_date = db.Column(db.String(50), nullable=False)
-    incident_time = db.Column(db.String(50), nullable=False)
-    
-    # GPS Location
-    gps_location = db.Column(db.String(200), nullable=False, default="0 0 0 0")
+    date = db.Column(db.DateTime, nullable=False)
     latitude = db.Column(db.Float, nullable=False)
     longitude = db.Column(db.Float, nullable=False)
-    altitude = db.Column(db.Float, default=0)
-    precision = db.Column(db.Float, default=0)
-    
-    # Incident Information
+    species = db.Column(db.String(100), nullable=False)
     incident_type = db.Column(db.String(100), nullable=False)
-    elephants_observed = db.Column(db.Integer, nullable=False)
-    
-    # Response Methods
-    response_noise = db.Column(db.Boolean, default=False)
-    response_fire = db.Column(db.Boolean, default=False)
-    response_chili = db.Column(db.Boolean, default=False)
-    response_flashlight = db.Column(db.Boolean, default=False)
-    response_other = db.Column(db.Boolean, default=False)
-    response_other_text = db.Column(db.String(200), default="")
-    
-    # Response Outcome
-    response_outcome = db.Column(db.String(200), nullable=False)
-    injuries_or_deaths = db.Column(db.String(100), nullable=False)
-    estimated_loss = db.Column(db.Float, nullable=False)
-    
-    # Additional Information
-    additional_comments = db.Column(db.Text, default="")
-    
-    # User association (nullable for existing data)
-    user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=True)
+    severity = db.Column(db.String(50), nullable=False)
+    distance_from_village_km = db.Column(db.Float, default=0)
+    reported_by = db.Column(db.String(120), nullable=False)
+    imported = db.Column(db.Boolean, default=False)
+    created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
 @login_manager.user_loader
 def load_user(user_id):
     return User.query.get(int(user_id))
 
-# Database initialization with error handling
-def init_db():
-    try:
-        # Try to query the database to check if tables exist with new schema
-        db.session.query(Incident).first()
-        print("Database schema is up to date")
-    except Exception as e:
-        print(f"Database schema outdated: {e}")
-        print("Recreating database with new schema...")
-        # Drop all tables and recreate
-        db.drop_all()
-        db.create_all()
-        print("Database recreated successfully")
+# Routes
+@app.route('/')
+def index():
+    return render_template('home.html', user=current_user)
 
-# Authentication Routes
+@app.route('/home')
+def home():
+    return render_template('home.html', user=current_user)
+
+@app.route('/view-incidents')
+@login_required
+def view_incidents():
+    return render_template('incidents.html', user=current_user)
+
+@app.route('/report-incident')
+@login_required
+def report_incident():
+    return render_template('report.html', user=current_user)
+
+@app.route('/predictions')
+@login_required
+def predictions():
+    return render_template('predictions.html', user=current_user)
+
 @app.route('/login', methods=['GET', 'POST'])
 def login():
+    if current_user.is_authenticated:
+        return redirect(url_for('home'))
+    
     if request.method == 'POST':
         email = request.form.get('email')
         password = request.form.get('password')
-        
         user = User.query.filter_by(email=email).first()
         
-        if user and user.password == password:
+        if user and user.check_password(password):
             login_user(user)
-            flash('Logged in successfully!', 'success')
-            return redirect(url_for('home'))
+            next_page = request.args.get('next')
+            return redirect(next_page) if next_page else redirect(url_for('home'))
         else:
-            flash('Invalid email or password.', 'error')
+            flash('Invalid email or password', 'error')
     
     return render_template('login.html')
 
 @app.route('/register', methods=['GET', 'POST'])
 def register():
+    if current_user.is_authenticated:
+        return redirect(url_for('home'))
+    
     if request.method == 'POST':
         email = request.form.get('email')
         password = request.form.get('password')
+        confirm_password = request.form.get('confirm_password')
         
-        if User.query.filter_by(email=email).first():
-            flash('Email already registered.', 'error')
+        if password != confirm_password:
+            flash('Passwords do not match', 'error')
             return render_template('register.html')
         
-        user = User(email=email, password=password, verified=True)
+        if User.query.filter_by(email=email).first():
+            flash('Email already registered', 'error')
+            return render_template('register.html')
+        
+        user = User(email=email, verified=True)  # Auto-verify for demo
+        user.set_password(password)
         db.session.add(user)
         db.session.commit()
         
-        flash('Registration successful! You can now log in.', 'success')
+        flash('Registration successful! You can now login.', 'success')
         return redirect(url_for('login'))
     
     return render_template('register.html')
-
-@app.route('/guest')
-def guest_access():
-    flash('You are browsing as a guest. Some features are limited.', 'info')
-    return redirect(url_for('home'))
 
 @app.route('/logout')
 @login_required
 def logout():
     logout_user()
-    flash('Logged out successfully.', 'success')
-    return redirect(url_for('home'))
+    return redirect(url_for('index'))
 
-# Manual Verification Routes
 @app.route('/verify-manual')
 @login_required
 def verify_manual():
-    if current_user.verified:
-        flash('Your account is already verified!', 'info')
-        return redirect(url_for('home'))
-    
-    return render_template('verify_manual.html')
-
-@app.route('/verify-now')
-@login_required
-def verify_now():
-    if not current_user.verified:
-        current_user.verified = True
-        db.session.commit()
-        flash('Account verified successfully! You can now export data.', 'success')
-    else:
-        flash('Account already verified!', 'info')
-    
+    # Auto-verify for demo purposes
+    current_user.verified = True
+    db.session.commit()
+    flash('Your account has been verified!', 'success')
     return redirect(url_for('home'))
 
-# Prediction/Forecasting Routes
-@app.route('/predictions')
-def predictions():
-    try:
-        incidents = Incident.query.all()
-        
-        if len(incidents) < 3:
-            return render_template('predictions.html', 
-                                 hotspots=[], 
-                                 day_patterns=[],
-                                 message="Need more data for predictions (minimum 3 incidents)")
-        
-        hotspots = simple_hotspot_detection(incidents)
-        day_patterns = analyze_day_patterns_simple(incidents)
-        
-        return render_template('predictions.html', 
-                             hotspots=hotspots, 
-                             day_patterns=day_patterns,
-                             total_incidents=len(incidents))
-        
-    except Exception as e:
-        return render_template('predictions.html', 
-                             hotspots=[], 
-                             day_patterns=[],
-                             message=f"Error generating predictions: {str(e)}")
-
-def simple_hotspot_detection(incidents):
-    try:
-        if len(incidents) < 2:
-            return []
-            
-        hotspots = []
-        processed = set()
-        
-        for i, incident in enumerate(incidents):
-            if i in processed:
-                continue
-                
-            nearby = []
-            for j, other in enumerate(incidents):
-                if (abs(incident.latitude - other.latitude) < 0.01 and 
-                    abs(incident.longitude - other.longitude) < 0.01):
-                    nearby.append(other)
-                    processed.add(j)
-            
-            if len(nearby) >= 2:
-                avg_lat = sum(inc.latitude for inc in nearby) / len(nearby)
-                avg_lng = sum(inc.longitude for inc in nearby) / len(nearby)
-                
-                hotspots.append({
-                    'center_lat': avg_lat,
-                    'center_lng': avg_lng,
-                    'incident_count': len(nearby),
-                    'radius': 0.005
-                })
-        
-        return sorted(hotspots, key=lambda x: x['incident_count'], reverse=True)[:5]
-        
-    except Exception as e:
-        print(f"Hotspot detection error: {e}")
-        return []
-
-def analyze_day_patterns_simple(incidents):
-    try:
-        day_counts = {}
-        day_names = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday']
-        
-        for incident in incidents:
-            try:
-                date_parts = incident.incident_date.split('-')
-                if len(date_parts) == 3:
-                    year, month, day = int(date_parts[0]), int(date_parts[1]), int(date_parts[2])
-                    date_obj = datetime(year, month, day)
-                    day_name = day_names[date_obj.weekday()]
-                    day_counts[day_name] = day_counts.get(day_name, 0) + 1
-            except:
-                continue
-        
-        day_patterns = []
-        total_incidents = len(incidents)
-        
-        for day in day_names:
-            count = day_counts.get(day, 0)
-            percentage = (count / total_incidents) * 100 if total_incidents > 0 else 0
-            
-            if percentage > 20:
-                risk = 'High'
-            elif percentage > 10:
-                risk = 'Medium'
-            else:
-                risk = 'Low'
-                
-            day_patterns.append({
-                'day': day,
-                'count': count,
-                'percentage': round(percentage, 1),
-                'risk': risk
-            })
-        
-        return day_patterns
-        
-    except Exception as e:
-        print(f"Day pattern analysis error: {e}")
-        return []
-
-# Main Routes
-@app.route('/')
-def home():
-    return render_template('home.html')
-
-@app.route('/report', methods=['GET', 'POST'])
-def report_incident():
-    if request.method == 'POST':
-        try:
-            current_time = datetime.now().strftime('%Y-%m-%dT%H:%M')
-            
-            incident = Incident(
-                start_time=request.form.get('start_time') or current_time,
-                end_time=request.form.get('end_time') or current_time,
-                crrt_member_name=request.form.get('crrt_member_name', 'Unknown'),
-                incident_date=request.form.get('incident_date', ''),
-                incident_time=request.form.get('incident_time', ''),
-                latitude=request.form.get('latitude', type=float) or 0.0,
-                longitude=request.form.get('longitude', type=float) or 0.0,
-                altitude=request.form.get('altitude', type=float) or 0.0,
-                precision=request.form.get('precision', type=float) or 0.0,
-                gps_location=f"{request.form.get('latitude', 0)} {request.form.get('longitude', 0)} {request.form.get('altitude', 0)} {request.form.get('precision', 0)}",
-                incident_type=request.form.get('incident_type', 'Unknown'),
-                elephants_observed=request.form.get('elephants_observed', type=int) or 0,
-                response_noise='response_noise' in request.form,
-                response_fire='response_fire' in request.form,
-                response_chili='response_chili' in request.form,
-                response_flashlight='response_flashlight' in request.form,
-                response_other='response_other' in request.form,
-                response_other_text=request.form.get('response_other_text', ''),
-                response_outcome=request.form.get('response_outcome', 'Unknown'),
-                injuries_or_deaths=request.form.get('injuries_or_deaths', 'No one injured'),
-                estimated_loss=request.form.get('estimated_loss', type=float) or 0.0,
-                additional_comments=request.form.get('additional_comments', ''),
-                user_id=current_user.id if current_user.is_authenticated else None
-            )
-            
-            db.session.add(incident)
-            db.session.commit()
-            flash('Incident reported successfully!', 'success')
-            return redirect(url_for('get_incidents'))
-            
-        except Exception as e:
-            db.session.rollback()
-            flash(f'Error submitting form: {str(e)}', 'error')
-    
-    return render_template('report.html')
-
-@app.route('/incidents')
-def get_incidents():
-    try:
-        # Handle database schema issues gracefully
-        try:
-            if current_user.is_authenticated and current_user.verified:
-                incidents = Incident.query.all()
-            else:
-                incidents = Incident.query.limit(50).all()
-        except Exception as db_error:
-            # If there's a schema error, reset and try again
-            print(f"Database error: {db_error}")
-            init_db()
-            incidents = Incident.query.limit(50).all()
-            
-        return render_template('incidents.html', incidents=incidents)
-    except Exception as e:
-        flash(f'Error loading incidents: {str(e)}', 'error')
-        return render_template('incidents.html', incidents=[])
-
-@app.route('/export')
-@login_required
-def export_incidents():
-    if not current_user.verified:
-        flash('Please verify your email to export data.', 'error')
-        return redirect(url_for('get_incidents'))
-        
-    try:
-        incidents = Incident.query.all()
-        
-        output = StringIO()
-        writer = csv.writer(output)
-        
-        writer.writerow([
-            'Start time', 'End time', 'Name of CRRT member', 'Date of incident', 'Time of incident',
-            'GPS location', 'Latitude', 'Longitude', 'Altitude', 'Precision',
-            'Type of incident', 'Number of elephants observed', 'Response outcome',
-            'Was anyone injured or killed?', 'Estimated loss (Tsh or in-kind)', 'Additional comments'
-        ])
-        
-        for incident in incidents:
-            writer.writerow([
-                incident.start_time,
-                incident.end_time,
-                incident.crrt_member_name,
-                incident.incident_date,
-                incident.incident_time,
-                incident.gps_location,
-                incident.latitude,
-                incident.longitude,
-                incident.altitude,
-                incident.precision,
-                incident.incident_type,
-                incident.elephants_observed,
-                incident.response_outcome,
-                incident.injuries_or_deaths,
-                incident.estimated_loss,
-                incident.additional_comments
-            ])
-        
-        mem = BytesIO()
-        mem.write(output.getvalue().encode('utf-8'))
-        mem.seek(0)
-        output.close()
-        
-        return send_file(
-            mem,
-            as_attachment=True,
-            download_name='wildlife_incidents.csv',
-            mimetype='text/csv'
-        )
-        
-    except Exception as e:
-        flash(f'Error exporting data: {str(e)}', 'error')
-        return redirect(url_for('get_incidents'))
-
 # API Routes
-@app.route('/api/incidents', methods=['GET', 'POST'])
-def api_incidents():
-    if request.method == 'POST':
-        try:
-            data = request.get_json()
-            
-            incident = Incident(
-                start_time=data.get('start_time', ''),
-                end_time=data.get('end_time', ''),
-                crrt_member_name=data.get('crrt_member_name', ''),
-                incident_date=data.get('incident_date', ''),
-                incident_time=data.get('incident_time', ''),
-                latitude=data.get('latitude', 0),
-                longitude=data.get('longitude', 0),
-                altitude=data.get('altitude', 0),
-                precision=data.get('precision', 0),
-                gps_location=f"{data.get('latitude', 0)} {data.get('longitude', 0)} {data.get('altitude', 0)} {data.get('precision', 0)}",
-                incident_type=data.get('incident_type', ''),
-                elephants_observed=data.get('elephants_observed', 0),
-                response_noise=data.get('response_noise', False),
-                response_fire=data.get('response_fire', False),
-                response_chili=data.get('response_chili', False),
-                response_flashlight=data.get('response_flashlight', False),
-                response_other=data.get('response_other', False),
-                response_other_text=data.get('response_other_text', ''),
-                response_outcome=data.get('response_outcome', ''),
-                injuries_or_deaths=data.get('injuries_or_deaths', ''),
-                estimated_loss=data.get('estimated_loss', 0),
-                additional_comments=data.get('additional_comments', '')
-            )
-            
-            db.session.add(incident)
-            db.session.commit()
-            return jsonify({'success': True, 'id': incident.id})
-            
-        except Exception as e:
-            return jsonify({'success': False, 'error': str(e)}), 500
-    
-    else:
-        incidents = Incident.query.all()
-        return jsonify([{
-            'id': i.id,
-            'crrt_member_name': i.crrt_member_name,
-            'incident_date': i.incident_date,
-            'incident_time': i.incident_time,
-            'latitude': i.latitude,
-            'longitude': i.longitude,
-            'incident_type': i.incident_type,
-            'elephants_observed': i.elephants_observed,
-            'estimated_loss': i.estimated_loss
-        } for i in incidents])
-
-@app.route('/api/sync-pending', methods=['POST'])
-def sync_pending():
+@app.route('/api/import-incidents', methods=['POST'])
+@login_required
+def import_incidents():
     try:
-        data = request.get_json()
-        pending_incidents = data.get('incidents', [])
+        if 'file' not in request.files:
+            return jsonify({'error': 'No file provided'}), 400
         
-        synced_ids = []
-        for incident_data in pending_incidents:
-            incident = Incident(
-                start_time=incident_data.get('start_time', ''),
-                end_time=incident_data.get('end_time', ''),
-                crrt_member_name=incident_data.get('crrt_member_name', ''),
-                incident_date=incident_data.get('incident_date', ''),
-                incident_time=incident_data.get('incident_time', ''),
-                latitude=incident_data.get('latitude', 0),
-                longitude=incident_data.get('longitude', 0),
-                altitude=incident_data.get('altitude', 0),
-                precision=incident_data.get('precision', 0),
-                gps_location=f"{incident_data.get('latitude', 0)} {incident_data.get('longitude', 0)} {incident_data.get('altitude', 0)} {incident_data.get('precision', 0)}",
-                incident_type=incident_data.get('incident_type', ''),
-                elephants_observed=incident_data.get('elephants_observed', 0),
-                response_noise=incident_data.get('response_noise', False),
-                response_fire=incident_data.get('response_fire', False),
-                response_chili=incident_data.get('response_chili', False),
-                response_flashlight=incident_data.get('response_flashlight', False),
-                response_other=incident_data.get('response_other', False),
-                response_other_text=incident_data.get('response_other_text', ''),
-                response_outcome=incident_data.get('response_outcome', ''),
-                injuries_or_deaths=incident_data.get('injuries_or_deaths', ''),
-                estimated_loss=incident_data.get('estimated_loss', 0),
-                additional_comments=incident_data.get('additional_comments', '')
-            )
+        file = request.files['file']
+        if file.filename == '':
+            return jsonify({'error': 'No file selected'}), 400
+
+        # For Render.com deployment, we'll process CSV data directly
+        if file.filename.lower().endswith('.csv'):
+            import csv
+            from io import TextIOWrapper
             
-            db.session.add(incident)
-            db.session.flush()
-            synced_ids.append({'local_id': incident_data.get('local_id'), 'server_id': incident.id})
-        
-        db.session.commit()
-        return jsonify({'success': True, 'synced': synced_ids})
-        
+            imported_count = 0
+            errors = []
+            
+            # Read CSV file
+            stream = TextIOWrapper(file.stream, encoding='utf-8')
+            csv_reader = csv.DictReader(stream)
+            
+            for row_num, row in enumerate(csv_reader, start=2):  # Start at 2 for header
+                try:
+                    # Parse date
+                    date_str = row.get('Date', '')
+                    try:
+                        incident_date = datetime.strptime(date_str, '%Y-%m-%d %H:%M:%S')
+                    except:
+                        incident_date = datetime.strptime(date_str, '%Y-%m-%d')
+                    
+                    # Create incident
+                    incident = Incident(
+                        date=incident_date,
+                        latitude=float(row.get('Latitude', 0)),
+                        longitude=float(row.get('Longitude', 0)),
+                        species=row.get('Species', 'Unknown'),
+                        incident_type=row.get('IncidentType', 'Sighting'),
+                        severity=row.get('Severity', 'Low'),
+                        distance_from_village_km=float(row.get('DistanceFromVillage_km', 0)),
+                        reported_by=current_user.email,
+                        imported=True
+                    )
+                    
+                    # Validate coordinates
+                    if not (-90 <= incident.latitude <= 90) or not (-180 <= incident.longitude <= 180):
+                        errors.append(f"Row {row_num}: Invalid coordinates")
+                        continue
+                    
+                    db.session.add(incident)
+                    imported_count += 1
+                    
+                except Exception as e:
+                    errors.append(f"Row {row_num}: {str(e)}")
+                    continue
+            
+            db.session.commit()
+            
+            return jsonify({
+                'message': 'Import completed',
+                'imported': imported_count,
+                'total_rows': row_num - 1,  # Subtract header
+                'errors': errors[:10]
+            })
+            
+        else:
+            return jsonify({'error': 'Only CSV files are supported in this deployment'}), 400
+
     except Exception as e:
         db.session.rollback()
-        return jsonify({'success': False, 'error': str(e)}), 500
+        return jsonify({'error': f'Import failed: {str(e)}'}), 500
 
-# Error handlers
-@app.errorhandler(404)
-def not_found(error):
-    return render_template('home.html'), 404
-
-@app.errorhandler(500)
-def internal_error(error):
-    return render_template('home.html'), 500
-
-# Initialize database with error handling
-with app.app_context():
+@app.route('/api/generate-predictions', methods=['GET'])
+@login_required
+def generate_predictions():
     try:
-        init_db()
-        print("Database initialized successfully")
+        # Get all incidents for the current user
+        incidents = Incident.query.filter_by(reported_by=current_user.email).all()
+        
+        if len(incidents) < 5:
+            return jsonify({
+                'error': 'Insufficient data for predictions. Need at least 5 incidents.'
+            }), 400
+
+        predictions = []
+        
+        # Simple clustering based on geographic proximity
+        clusters = []
+        for incident in incidents:
+            added_to_cluster = False
+            for cluster in clusters:
+                # Check if incident is within 2km of cluster center
+                cluster_center_lat = sum(inc.latitude for inc in cluster) / len(cluster)
+                cluster_center_lng = sum(inc.longitude for inc in cluster) / len(cluster)
+                
+                distance = calculate_distance(
+                    incident.latitude, incident.longitude,
+                    cluster_center_lat, cluster_center_lng
+                )
+                
+                if distance <= 2.0:  # 2km radius
+                    cluster.append(incident)
+                    added_to_cluster = True
+                    break
+            
+            if not added_to_cluster:
+                clusters.append([incident])
+        
+        # Generate predictions from clusters
+        for i, cluster in enumerate(clusters):
+            if len(cluster) >= 2:  # Only consider clusters with multiple incidents
+                center_lat = sum(inc.latitude for inc in cluster) / len(cluster)
+                center_lng = sum(inc.longitude for inc in cluster) / len(cluster)
+                
+                # Calculate risk level
+                high_severity_count = sum(1 for inc in cluster if inc.severity == 'High')
+                risk_score = len(cluster) + (high_severity_count * 2)
+                
+                if risk_score >= 5:
+                    risk_level = "HIGH"
+                elif risk_score >= 3:
+                    risk_level = "MEDIUM"
+                else:
+                    risk_level = "LOW"
+                
+                main_species = max(set(inc.species for inc in cluster), key=lambda x: list(inc.species for inc in cluster).count(x))
+                
+                predictions.append({
+                    'area_name': f'Risk Zone {i+1}',
+                    'latitude': center_lat,
+                    'longitude': center_lng,
+                    'risk_level': risk_level,
+                    'risk_score': risk_score,
+                    'incident_count': len(cluster),
+                    'reason': f'Cluster of {len(cluster)} incidents with {high_severity_count} high severity. Main species: {main_species}'
+                })
+        
+        # Add individual high severity incidents as predictions
+        high_severity_incidents = [inc for inc in incidents if inc.severity == 'High']
+        for i, incident in enumerate(high_severity_incidents[:3]):
+            predictions.append({
+                'area_name': f'High Risk Point {i+1}',
+                'latitude': incident.latitude,
+                'longitude': incident.longitude,
+                'risk_level': 'HIGH',
+                'risk_score': 3,
+                'incident_count': 1,
+                'reason': f'High severity incident involving {incident.species}'
+            })
+        
+        return jsonify({
+            'predictions': predictions[:10],  # Limit to 10 predictions
+            'total_generated': len(predictions),
+            'data_points_used': len(incidents)
+        })
+
     except Exception as e:
-        print(f"Database initialization error: {e}")
-        # Force recreate database
-        db.drop_all()
+        return jsonify({'error': f'Prediction generation failed: {str(e)}'}), 500
+
+@app.route('/api/generate-hotspots', methods=['GET'])
+@login_required
+def generate_hotspots():
+    try:
+        incidents = Incident.query.filter_by(reported_by=current_user.email).all()
+        
+        if len(incidents) < 3:
+            return jsonify({
+                'error': 'Insufficient data for hotspot analysis. Need at least 3 incidents.'
+            }), 400
+
+        hotspots = []
+        
+        # Simple hotspot detection using grid-based approach
+        grid_size = 0.02  # Approximately 2km grid
+        
+        # Create grid cells
+        grid_cells = {}
+        for incident in incidents:
+            grid_x = round(incident.latitude / grid_size) * grid_size
+            grid_y = round(incident.longitude / grid_size) * grid_size
+            cell_key = (grid_x, grid_y)
+            
+            if cell_key not in grid_cells:
+                grid_cells[cell_key] = []
+            grid_cells[cell_key].append(incident)
+        
+        # Identify hotspots (cells with multiple incidents)
+        for (cell_lat, cell_lng), cell_incidents in grid_cells.items():
+            if len(cell_incidents) >= 2:  # Hotspot threshold
+                species_counts = {}
+                for inc in cell_incidents:
+                    species_counts[inc.species] = species_counts.get(inc.species, 0) + 1
+                
+                main_species = sorted(species_counts.items(), key=lambda x: x[1], reverse=True)[:3]
+                main_species_names = [species for species, count in main_species]
+                
+                severity_counts = {
+                    'High': len([inc for inc in cell_incidents if inc.severity == 'High']),
+                    'Medium': len([inc for inc in cell_incidents if inc.severity == 'Moderate']),
+                    'Low': len([inc for inc in cell_incidents if inc.severity == 'Low'])
+                }
+                
+                hotspots.append({
+                    'name': f'Hotspot {len(hotspots) + 1}',
+                    'center_lat': cell_lat,
+                    'center_lng': cell_lng,
+                    'incident_count': len(cell_incidents),
+                    'radius_km': 1.0,  # Fixed radius for grid-based approach
+                    'main_species': main_species_names,
+                    'severity_breakdown': severity_counts
+                })
+        
+        hotspots.sort(key=lambda x: x['incident_count'], reverse=True)
+        
+        return jsonify({
+            'hotspots': hotspots[:8],  # Limit to 8 hotspots
+            'total_hotspots': len(hotspots),
+            'total_incidents_analyzed': len(incidents)
+        })
+        
+    except Exception as e:
+        return jsonify({'error': f'Hotspot generation failed: {str(e)}'}), 500
+
+@app.route('/api/statistics', methods=['GET'])
+@login_required
+def get_statistics():
+    try:
+        total_incidents = Incident.query.filter_by(reported_by=current_user.email).count()
+        imported_incidents = Incident.query.filter_by(reported_by=current_user.email, imported=True).count()
+        
+        # Calculate data coverage
+        if total_incidents > 0:
+            data_coverage = min(100, (total_incidents / 30) * 100)
+        else:
+            data_coverage = 0
+            
+        # Count high risk areas
+        high_severity_count = Incident.query.filter_by(reported_by=current_user.email, severity='High').count()
+        high_risk_areas = min(8, high_severity_count)
+        
+        return jsonify({
+            'total_incidents': total_incidents,
+            'imported_incidents': imported_incidents,
+            'high_risk_areas': high_risk_areas,
+            'data_coverage': round(data_coverage, 1)
+        })
+        
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+# Helper functions
+def calculate_distance(lat1, lon1, lat2, lon2):
+    """Calculate distance between two points using Haversine formula"""
+    R = 6371  # Earth radius in kilometers
+    
+    lat1, lon1, lat2, lon2 = map(math.radians, [lat1, lon1, lat2, lon2])
+    
+    dlat = lat2 - lat1
+    dlon = lon2 - lon1
+    
+    a = math.sin(dlat/2)**2 + math.cos(lat1) * math.cos(lat2) * math.sin(dlon/2)**2
+    c = 2 * math.atan2(math.sqrt(a), math.sqrt(1-a))
+    
+    return R * c
+
+# Initialize database
+def init_db():
+    with app.app_context():
         db.create_all()
-        print("Database recreated after error")
+        
+        # Create demo user if not exists
+        if not User.query.filter_by(email='jonesabely@gmail.com').first():
+            demo_user = User(email='jonesabely@gmail.com', verified=True)
+            demo_user.set_password('demo123')
+            db.session.add(demo_user)
+            db.session.commit()
 
 if __name__ == '__main__':
-    app.run(host='0.0.0.0', port=5000, debug=False)
+    init_db()
+    port = int(os.environ.get('PORT', 5000))
+    app.run(host='0.0.0.0', port=port, debug=False)
