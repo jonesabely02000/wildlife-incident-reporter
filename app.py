@@ -9,12 +9,14 @@ import math
 import csv
 from io import StringIO
 from sqlalchemy import func
+import traceback
 
 app = Flask(__name__)
 app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', 'dev-secret-key-change-in-production')
 app.config['SQLALCHEMY_DATABASE_URI'] = os.environ.get('DATABASE_URL', 'sqlite:///wildlife.db')
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
+# Initialize extensions
 db = SQLAlchemy(app)
 login_manager = LoginManager()
 login_manager.init_app(app)
@@ -50,7 +52,23 @@ class Incident(db.Model):
 
 @login_manager.user_loader
 def load_user(user_id):
-    return User.query.get(int(user_id))
+    try:
+        return User.query.get(int(user_id))
+    except:
+        return None
+
+# Error handlers
+@app.errorhandler(500)
+def internal_error(error):
+    return render_template('error.html', 
+                         error="Internal Server Error", 
+                         message="Something went wrong. Please try again later."), 500
+
+@app.errorhandler(404)
+def not_found_error(error):
+    return render_template('error.html', 
+                         error="Page Not Found", 
+                         message="The page you're looking for doesn't exist."), 404
 
 # Routes
 @app.route('/')
@@ -78,85 +96,120 @@ def predictions():
 
 @app.route('/login', methods=['GET', 'POST'])
 def login():
-    if current_user.is_authenticated:
-        return redirect(url_for('home'))
-    
-    if request.method == 'POST':
-        email = request.form.get('email')
-        password = request.form.get('password')
-        user = User.query.filter_by(email=email).first()
+    try:
+        if current_user.is_authenticated:
+            return redirect(url_for('home'))
         
-        if user and user.check_password(password):
-            login_user(user)
-            next_page = request.args.get('next')
-            return redirect(next_page) if next_page else redirect(url_for('home'))
-        else:
-            flash('Invalid email or password', 'error')
-    
-    return render_template('login.html')
+        if request.method == 'POST':
+            email = request.form.get('email', '').strip()
+            password = request.form.get('password', '')
+            
+            if not email or not password:
+                flash('Please fill in all fields', 'error')
+                return render_template('login.html')
+            
+            user = User.query.filter_by(email=email).first()
+            
+            if user and user.check_password(password):
+                login_user(user)
+                next_page = request.args.get('next')
+                return redirect(next_page) if next_page else redirect(url_for('home'))
+            else:
+                flash('Invalid email or password', 'error')
+        
+        return render_template('login.html')
+    except Exception as e:
+        print(f"Login error: {str(e)}")
+        flash('An error occurred during login. Please try again.', 'error')
+        return render_template('login.html')
 
 @app.route('/register', methods=['GET', 'POST'])
 def register():
-    if current_user.is_authenticated:
-        return redirect(url_for('home'))
-    
-    if request.method == 'POST':
-        email = request.form.get('email')
-        password = request.form.get('password')
-        confirm_password = request.form.get('confirm_password')
+    try:
+        if current_user.is_authenticated:
+            return redirect(url_for('home'))
         
-        # Debug: Print form data
-        print(f"Email: {email}")
-        print(f"Password: {password}")
-        print(f"Confirm: {confirm_password}")
-        
-        if not email or not password or not confirm_password:
-            flash('All fields are required', 'error')
-            return render_template('register.html')
-        
-        if password != confirm_password:
-            flash('Passwords do not match', 'error')
-            return render_template('register.html')
-        
-        existing_user = User.query.filter_by(email=email).first()
-        if existing_user:
-            flash('Email already registered', 'error')
-            return render_template('register.html')
-        
-        try:
+        if request.method == 'POST':
+            email = request.form.get('email', '').strip().lower()
+            password = request.form.get('password', '')
+            confirm_password = request.form.get('confirm_password', '')
+            
+            # Validation
+            if not email or not password or not confirm_password:
+                flash('All fields are required', 'error')
+                return render_template('register.html')
+            
+            if len(password) < 6:
+                flash('Password must be at least 6 characters long', 'error')
+                return render_template('register.html')
+            
+            if password != confirm_password:
+                flash('Passwords do not match', 'error')
+                return render_template('register.html')
+            
+            if not '@' in email or not '.' in email:
+                flash('Please enter a valid email address', 'error')
+                return render_template('register.html')
+            
+            # Check if user exists
+            existing_user = User.query.filter_by(email=email).first()
+            if existing_user:
+                flash('Email already registered. Please login instead.', 'error')
+                return render_template('register.html')
+            
+            # Create new user
             user = User(email=email, verified=True)
             user.set_password(password)
+            
             db.session.add(user)
             db.session.commit()
             
             flash('Registration successful! You can now login.', 'success')
             return redirect(url_for('login'))
-        except Exception as e:
-            db.session.rollback()
-            flash('Registration failed. Please try again.', 'error')
-            print(f"Registration error: {str(e)}")
-    
-    return render_template('register.html')
+            
+        return render_template('register.html')
+        
+    except Exception as e:
+        db.session.rollback()
+        print(f"Registration error: {str(e)}")
+        print(traceback.format_exc())
+        flash('Registration failed. Please try again.', 'error')
+        return render_template('register.html')
 
 @app.route('/login-guest')
 def login_guest():
     """Login as guest user"""
     try:
-        # Check if guest user exists, if not create one
+        # Use a simple guest account
         guest_email = "guest@wildlife.com"
+        guest_password = "guest123"
+        
+        # Check if guest user exists
         guest_user = User.query.filter_by(email=guest_email).first()
         
         if not guest_user:
+            # Create guest user
             guest_user = User(email=guest_email, verified=True)
-            guest_user.set_password("guest123")
+            guest_user.set_password(guest_password)
             db.session.add(guest_user)
             db.session.commit()
+            print("Guest user created successfully")
+        else:
+            print("Guest user already exists")
         
-        login_user(guest_user)
-        flash('Logged in as guest user successfully!', 'success')
-        return redirect(url_for('home'))
-        
+        # Login the guest user
+        if guest_user and guest_user.check_password(guest_password):
+            login_user(guest_user)
+            flash('Logged in as guest user successfully!', 'success')
+            return redirect(url_for('home'))
+        else:
+            flash('Guest login failed. Please try regular registration.', 'error')
+            return redirect(url_for('login'))
+            
     except Exception as e:
+        db.session.rollback()
+        print(f"Guest login error: {str(e)}")
+        print(traceback.format_exc())
         flash('Guest login failed. Please try regular registration.', 'error')
         return redirect(url_for('login'))
 
@@ -169,11 +222,15 @@ def logout():
 @app.route('/verify-manual')
 @login_required
 def verify_manual():
-    # Auto-verify for demo purposes
-    current_user.verified = True
-    db.session.commit()
-    flash('Your account has been verified!', 'success')
-    return redirect(url_for('home'))
+    try:
+        current_user.verified = True
+        db.session.commit()
+        flash('Your account has been verified!', 'success')
+        return redirect(url_for('home'))
+    except Exception as e:
+        db.session.rollback()
+        flash('Verification failed. Please try again.', 'error')
+        return redirect(url_for('home'))
 
 # API Routes
 @app.route('/api/incidents')
@@ -200,7 +257,8 @@ def get_incidents():
         return jsonify(incidents_data)
     
     except Exception as e:
-        return jsonify({'error': str(e)}), 500
+        print(f"Get incidents error: {str(e)}")
+        return jsonify({'error': 'Failed to fetch incidents'}), 500
 
 @app.route('/api/export-incidents')
 @login_required
@@ -236,34 +294,8 @@ def export_incidents():
         return response
     
     except Exception as e:
-        return jsonify({'error': str(e)}), 500
-
-@app.route('/api/report-incident', methods=['POST'])
-@login_required
-def report_incident_api():
-    """API endpoint to report new incidents"""
-    try:
-        data = request.get_json()
-        
-        incident = Incident(
-            date=datetime.strptime(data.get('date'), '%Y-%m-%d'),
-            latitude=float(data.get('latitude')),
-            longitude=float(data.get('longitude')),
-            species=data.get('species'),
-            incident_type=data.get('incident_type'),
-            severity=data.get('severity'),
-            distance_from_village_km=float(data.get('distance_from_village_km', 0)),
-            reported_by=current_user.email
-        )
-        
-        db.session.add(incident)
-        db.session.commit()
-        
-        return jsonify({'message': 'Incident reported successfully', 'id': incident.id})
-    
-    except Exception as e:
-        db.session.rollback()
-        return jsonify({'error': str(e)}), 500
+        print(f"Export error: {str(e)}")
+        return jsonify({'error': 'Export failed'}), 500
 
 @app.route('/api/import-incidents', methods=['POST'])
 @login_required
@@ -276,25 +308,21 @@ def import_incidents():
         if file.filename == '':
             return jsonify({'error': 'No file selected'}), 400
 
-        # For Render.com deployment, we'll process CSV data directly
         if file.filename.lower().endswith('.csv'):
             imported_count = 0
             errors = []
             
-            # Read CSV file
             stream = StringIO(file.stream.read().decode('UTF-8'), newline=None)
             csv_reader = csv.DictReader(stream)
             
-            for row_num, row in enumerate(csv_reader, start=2):  # Start at 2 for header
+            for row_num, row in enumerate(csv_reader, start=2):
                 try:
-                    # Parse date
                     date_str = row.get('Date', '')
                     try:
                         incident_date = datetime.strptime(date_str, '%Y-%m-%d %H:%M:%S')
                     except:
                         incident_date = datetime.strptime(date_str, '%Y-%m-%d')
                     
-                    # Create incident
                     incident = Incident(
                         date=incident_date,
                         latitude=float(row.get('Latitude', 0)),
@@ -307,7 +335,6 @@ def import_incidents():
                         imported=True
                     )
                     
-                    # Validate coordinates
                     if not (-90 <= incident.latitude <= 90) or not (-180 <= incident.longitude <= 180):
                         errors.append(f"Row {row_num}: Invalid coordinates")
                         continue
@@ -324,122 +351,35 @@ def import_incidents():
             return jsonify({
                 'message': 'Import completed',
                 'imported': imported_count,
-                'total_rows': row_num - 1,  # Subtract header
+                'total_rows': row_num - 1,
                 'errors': errors[:10]
             })
             
         else:
-            return jsonify({'error': 'Only CSV files are supported in this deployment'}), 400
+            return jsonify({'error': 'Only CSV files are supported'}), 400
 
     except Exception as e:
         db.session.rollback()
+        print(f"Import error: {str(e)}")
         return jsonify({'error': f'Import failed: {str(e)}'}), 500
 
 @app.route('/api/generate-predictions', methods=['GET'])
 @login_required
 def generate_predictions():
     try:
-        # Get all incidents for the current user
-        incidents = Incident.query.filter_by(reported_by=current_user.email).all()
-        
-        if len(incidents) < 5:
-            return jsonify({
-                'error': 'Insufficient data for predictions. Need at least 5 incidents.'
-            }), 400
-
-        predictions = []
-        
-        # Simple clustering based on geographic proximity
-        clusters = []
-        for incident in incidents:
-            added_to_cluster = False
-            for cluster in clusters:
-                # Check if incident is within 2km of cluster center
-                cluster_center_lat = sum(inc.latitude for inc in cluster) / len(cluster)
-                cluster_center_lng = sum(inc.longitude for inc in cluster) / len(cluster)
-                
-                distance = calculate_distance(
-                    incident.latitude, incident.longitude,
-                    cluster_center_lat, cluster_center_lng
-                )
-                
-                if distance <= 2.0:  # 2km radius
-                    cluster.append(incident)
-                    added_to_cluster = True
-                    break
-            
-            if not added_to_cluster:
-                clusters.append([incident])
-        
-        # Generate predictions from clusters
-        for i, cluster in enumerate(clusters):
-            if len(cluster) >= 2:  # Only consider clusters with multiple incidents
-                center_lat = sum(inc.latitude for inc in cluster) / len(cluster)
-                center_lng = sum(inc.longitude for inc in cluster) / len(cluster)
-                
-                # Calculate risk level
-                high_severity_count = sum(1 for inc in cluster if inc.severity == 'High')
-                risk_score = len(cluster) + (high_severity_count * 2)
-                
-                if risk_score >= 5:
-                    risk_level = "HIGH"
-                elif risk_score >= 3:
-                    risk_level = "MEDIUM"
-                else:
-                    risk_level = "LOW"
-                
-                main_species = max(set(inc.species for inc in cluster), key=lambda x: list(inc.species for inc in cluster).count(x))
-                
-                predictions.append({
-                    'area_name': f'Risk Zone {i+1}',
-                    'latitude': center_lat,
-                    'longitude': center_lng,
-                    'risk_level': risk_level,
-                    'risk_score': risk_score,
-                    'incident_count': len(cluster),
-                    'reason': f'Cluster of {len(cluster)} incidents with {high_severity_count} high severity. Main species: {main_species}'
-                })
-        
-        # Add individual high severity incidents as predictions
-        high_severity_incidents = [inc for inc in incidents if inc.severity == 'High']
-        for i, incident in enumerate(high_severity_incidents[:3]):
-            predictions.append({
-                'area_name': f'High Risk Point {i+1}',
-                'latitude': incident.latitude,
-                'longitude': incident.longitude,
-                'risk_level': 'HIGH',
-                'risk_score': 3,
-                'incident_count': 1,
-                'reason': f'High severity incident involving {incident.species}'
-            })
-        
-        return jsonify({
-            'predictions': predictions[:10],  # Limit to 10 predictions
-            'total_generated': len(predictions),
-            'data_points_used': len(incidents)
-        })
-
-    except Exception as e:
-        return jsonify({'error': f'Prediction generation failed: {str(e)}'}), 500
-
-@app.route('/api/generate-hotspots', methods=['GET'])
-@login_required
-def generate_hotspots():
-    try:
         incidents = Incident.query.filter_by(reported_by=current_user.email).all()
         
         if len(incidents) < 3:
             return jsonify({
-                'error': 'Insufficient data for hotspot analysis. Need at least 3 incidents.'
+                'error': 'Insufficient data for predictions. Need at least 3 incidents.'
             }), 400
 
-        hotspots = []
+        predictions = []
         
-        # Simple hotspot detection using grid-based approach
-        grid_size = 0.02  # Approximately 2km grid
-        
-        # Create grid cells
+        # Simple grid-based prediction
+        grid_size = 0.02
         grid_cells = {}
+        
         for incident in incidents:
             grid_x = round(incident.latitude / grid_size) * grid_size
             grid_y = round(incident.longitude / grid_size) * grid_size
@@ -449,42 +389,95 @@ def generate_hotspots():
                 grid_cells[cell_key] = []
             grid_cells[cell_key].append(incident)
         
-        # Identify hotspots (cells with multiple incidents)
         for (cell_lat, cell_lng), cell_incidents in grid_cells.items():
-            if len(cell_incidents) >= 2:  # Hotspot threshold
+            if len(cell_incidents) >= 2:
+                high_severity_count = sum(1 for inc in cell_incidents if inc.severity == 'High')
+                risk_score = len(cell_incidents) + (high_severity_count * 2)
+                
+                if risk_score >= 3:
+                    risk_level = "HIGH"
+                elif risk_score >= 2:
+                    risk_level = "MEDIUM"
+                else:
+                    risk_level = "LOW"
+                
+                main_species = max(set(inc.species for inc in cell_incidents), 
+                                 key=lambda x: list(inc.species for inc in cell_incidents).count(x))
+                
+                predictions.append({
+                    'area_name': f'Risk Zone {len(predictions) + 1}',
+                    'latitude': cell_lat,
+                    'longitude': cell_lng,
+                    'risk_level': risk_level,
+                    'risk_score': risk_score,
+                    'incident_count': len(cell_incidents),
+                    'reason': f'Area with {len(cell_incidents)} incidents'
+                })
+        
+        return jsonify({
+            'predictions': predictions[:5],
+            'total_generated': len(predictions),
+            'data_points_used': len(incidents)
+        })
+
+    except Exception as e:
+        print(f"Prediction error: {str(e)}")
+        return jsonify({'error': 'Prediction generation failed'}), 500
+
+@app.route('/api/generate-hotspots', methods=['GET'])
+@login_required
+def generate_hotspots():
+    try:
+        incidents = Incident.query.filter_by(reported_by=current_user.email).all()
+        
+        if len(incidents) < 2:
+            return jsonify({
+                'error': 'Insufficient data for hotspot analysis. Need at least 2 incidents.'
+            }), 400
+
+        hotspots = []
+        
+        grid_size = 0.02
+        grid_cells = {}
+        
+        for incident in incidents:
+            grid_x = round(incident.latitude / grid_size) * grid_size
+            grid_y = round(incident.longitude / grid_size) * grid_size
+            cell_key = (grid_x, grid_y)
+            
+            if cell_key not in grid_cells:
+                grid_cells[cell_key] = []
+            grid_cells[cell_key].append(incident)
+        
+        for (cell_lat, cell_lng), cell_incidents in grid_cells.items():
+            if len(cell_incidents) >= 2:
                 species_counts = {}
                 for inc in cell_incidents:
                     species_counts[inc.species] = species_counts.get(inc.species, 0) + 1
                 
-                main_species = sorted(species_counts.items(), key=lambda x: x[1], reverse=True)[:3]
+                main_species = sorted(species_counts.items(), key=lambda x: x[1], reverse=True)[:2]
                 main_species_names = [species for species, count in main_species]
-                
-                severity_counts = {
-                    'High': len([inc for inc in cell_incidents if inc.severity == 'High']),
-                    'Medium': len([inc for inc in cell_incidents if inc.severity == 'Moderate']),
-                    'Low': len([inc for inc in cell_incidents if inc.severity == 'Low'])
-                }
                 
                 hotspots.append({
                     'name': f'Hotspot {len(hotspots) + 1}',
                     'center_lat': cell_lat,
                     'center_lng': cell_lng,
                     'incident_count': len(cell_incidents),
-                    'radius_km': 1.0,  # Fixed radius for grid-based approach
-                    'main_species': main_species_names,
-                    'severity_breakdown': severity_counts
+                    'radius_km': 1.0,
+                    'main_species': main_species_names
                 })
         
         hotspots.sort(key=lambda x: x['incident_count'], reverse=True)
         
         return jsonify({
-            'hotspots': hotspots[:8],  # Limit to 8 hotspots
+            'hotspots': hotspots[:5],
             'total_hotspots': len(hotspots),
             'total_incidents_analyzed': len(incidents)
         })
         
     except Exception as e:
-        return jsonify({'error': f'Hotspot generation failed: {str(e)}'}), 500
+        print(f"Hotspot error: {str(e)}")
+        return jsonify({'error': 'Hotspot generation failed'}), 500
 
 @app.route('/api/statistics', methods=['GET'])
 @login_required
@@ -493,15 +486,8 @@ def get_statistics():
         total_incidents = Incident.query.filter_by(reported_by=current_user.email).count()
         imported_incidents = Incident.query.filter_by(reported_by=current_user.email, imported=True).count()
         
-        # Calculate data coverage
-        if total_incidents > 0:
-            data_coverage = min(100, (total_incidents / 30) * 100)
-        else:
-            data_coverage = 0
-            
-        # Count high risk areas
-        high_severity_count = Incident.query.filter_by(reported_by=current_user.email, severity='High').count()
-        high_risk_areas = min(8, high_severity_count)
+        data_coverage = min(100, (total_incidents / 20) * 100) if total_incidents > 0 else 0
+        high_risk_areas = min(5, total_incidents // 2)
         
         return jsonify({
             'total_incidents': total_incidents,
@@ -511,45 +497,49 @@ def get_statistics():
         })
         
     except Exception as e:
-        return jsonify({'error': str(e)}), 500
+        print(f"Statistics error: {str(e)}")
+        return jsonify({'error': 'Failed to get statistics'}), 500
 
 # Helper functions
 def calculate_distance(lat1, lon1, lat2, lon2):
-    """Calculate distance between two points using Haversine formula"""
-    R = 6371  # Earth radius in kilometers
-    
+    R = 6371
     lat1, lon1, lat2, lon2 = map(math.radians, [lat1, lon1, lat2, lon2])
-    
     dlat = lat2 - lat1
     dlon = lon2 - lon1
-    
     a = math.sin(dlat/2)**2 + math.cos(lat1) * math.cos(lat2) * math.sin(dlon/2)**2
     c = 2 * math.atan2(math.sqrt(a), math.sqrt(1-a))
-    
     return R * c
 
-# Initialize database - PRESERVE EXISTING DATA
+# Initialize database safely
 def init_db():
     with app.app_context():
         try:
-            # This will create tables but not drop existing ones
             db.create_all()
+            print("Database tables created/verified")
             
-            # Create demo user if not exists (won't overwrite existing)
-            demo_email = "jonesabely@gmail.com"
-            if not User.query.filter_by(email=demo_email).first():
-                demo_user = User(email=demo_email, verified=True)
-                demo_user.set_password("demo123")
-                db.session.add(demo_user)
+            # Create guest user if doesn't exist
+            guest_email = "guest@wildlife.com"
+            if not User.query.filter_by(email=guest_email).first():
+                guest_user = User(email=guest_email, verified=True)
+                guest_user.set_password("guest123")
+                db.session.add(guest_user)
                 db.session.commit()
-                print("Demo user created")
-            else:
-                print("Demo user already exists")
-                
+                print("Guest user created")
+            
         except Exception as e:
-            print(f"Database initialization error: {str(e)}")
+            print(f"Database init error: {str(e)}")
+            print(traceback.format_exc())
+
+# Create error page template
+@app.route('/error-test')
+def error_test():
+    """Route to test error handling"""
+    return render_template('error.html', 
+                         error="Test Error", 
+                         message="This is a test error page.")
 
 if __name__ == '__main__':
+    print("Starting Wildlife Incident Reporter...")
     init_db()
     port = int(os.environ.get('PORT', 5000))
     app.run(host='0.0.0.0', port=port, debug=False)
