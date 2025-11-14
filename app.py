@@ -105,23 +105,60 @@ def register():
         password = request.form.get('password')
         confirm_password = request.form.get('confirm_password')
         
+        # Debug: Print form data
+        print(f"Email: {email}")
+        print(f"Password: {password}")
+        print(f"Confirm: {confirm_password}")
+        
+        if not email or not password or not confirm_password:
+            flash('All fields are required', 'error')
+            return render_template('register.html')
+        
         if password != confirm_password:
             flash('Passwords do not match', 'error')
             return render_template('register.html')
         
-        if User.query.filter_by(email=email).first():
+        existing_user = User.query.filter_by(email=email).first()
+        if existing_user:
             flash('Email already registered', 'error')
             return render_template('register.html')
         
-        user = User(email=email, verified=True)  # Auto-verify for demo
-        user.set_password(password)
-        db.session.add(user)
-        db.session.commit()
-        
-        flash('Registration successful! You can now login.', 'success')
-        return redirect(url_for('login'))
+        try:
+            user = User(email=email, verified=True)
+            user.set_password(password)
+            db.session.add(user)
+            db.session.commit()
+            
+            flash('Registration successful! You can now login.', 'success')
+            return redirect(url_for('login'))
+        except Exception as e:
+            db.session.rollback()
+            flash('Registration failed. Please try again.', 'error')
+            print(f"Registration error: {str(e)}")
     
     return render_template('register.html')
+
+@app.route('/login-guest')
+def login_guest():
+    """Login as guest user"""
+    try:
+        # Check if guest user exists, if not create one
+        guest_email = "guest@wildlife.com"
+        guest_user = User.query.filter_by(email=guest_email).first()
+        
+        if not guest_user:
+            guest_user = User(email=guest_email, verified=True)
+            guest_user.set_password("guest123")
+            db.session.add(guest_user)
+            db.session.commit()
+        
+        login_user(guest_user)
+        flash('Logged in as guest user successfully!', 'success')
+        return redirect(url_for('home'))
+        
+    except Exception as e:
+        flash('Guest login failed. Please try regular registration.', 'error')
+        return redirect(url_for('login'))
 
 @app.route('/logout')
 @login_required
@@ -491,17 +528,26 @@ def calculate_distance(lat1, lon1, lat2, lon2):
     
     return R * c
 
-# Initialize database
+# Initialize database - PRESERVE EXISTING DATA
 def init_db():
     with app.app_context():
-        db.create_all()
-        
-        # Create demo user if not exists
-        if not User.query.filter_by(email='jonesabely@gmail.com').first():
-            demo_user = User(email='jonesabely@gmail.com', verified=True)
-            demo_user.set_password('demo123')
-            db.session.add(demo_user)
-            db.session.commit()
+        try:
+            # This will create tables but not drop existing ones
+            db.create_all()
+            
+            # Create demo user if not exists (won't overwrite existing)
+            demo_email = "jonesabely@gmail.com"
+            if not User.query.filter_by(email=demo_email).first():
+                demo_user = User(email=demo_email, verified=True)
+                demo_user.set_password("demo123")
+                db.session.add(demo_user)
+                db.session.commit()
+                print("Demo user created")
+            else:
+                print("Demo user already exists")
+                
+        except Exception as e:
+            print(f"Database initialization error: {str(e)}")
 
 if __name__ == '__main__':
     init_db()

@@ -2,42 +2,56 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Login - Wildlife Incident Reporter</title>
     <style>
-        body {
-            font-family: Arial, sans-serif;
+        * {
             margin: 0;
-            padding: 20px;
-            background-image: url('/static/wildlife_bg.jpg');
-            background-size: cover;
-            background-attachment: fixed;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            min-height: 100vh;
+            padding: 0;
+            box-sizing: border-box;
         }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }
+
         .login-container {
-            background: rgba(255, 255, 255, 0.95);
+            background: white;
             padding: 40px;
             border-radius: 15px;
-            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
-            max-width: 400px;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
             width: 100%;
+            max-width: 400px;
         }
-        h1 {
+
+        .logo {
             text-align: center;
-            color: #2c3e50;
             margin-bottom: 30px;
         }
+
+        .logo h1 {
+            color: #333;
+            font-size: 2em;
+            margin-bottom: 10px;
+        }
+
         .form-group {
             margin-bottom: 20px;
         }
+
         label {
             display: block;
             margin-bottom: 5px;
-            font-weight: bold;
-            color: #2c3e50;
+            color: #333;
+            font-weight: 500;
         }
+
         input[type="email"],
         input[type="password"] {
             width: 100%;
@@ -45,112 +59,124 @@
             border: 1px solid #ddd;
             border-radius: 5px;
             font-size: 16px;
-            box-sizing: border-box;
+            transition: border-color 0.3s ease;
         }
+
+        input[type="email"]:focus,
+        input[type="password"]:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+
         .btn {
             width: 100%;
             padding: 12px;
-            background: #3498db;
+            background: #667eea;
             color: white;
             border: none;
             border-radius: 5px;
             font-size: 16px;
             cursor: pointer;
-            margin-bottom: 15px;
-            transition: background 0.3s;
+            transition: all 0.3s ease;
         }
+
         .btn:hover {
-            background: #2980b9;
+            background: #5a6fd8;
+            transform: translateY(-2px);
         }
+
         .btn-secondary {
-            background: #95a5a6;
+            background: #6c757d;
+            margin-top: 10px;
         }
+
         .btn-secondary:hover {
-            background: #7f8c8d;
+            background: #5a6268;
         }
+
         .links {
             text-align: center;
             margin-top: 20px;
         }
+
         .links a {
-            color: #3498db;
+            color: #667eea;
             text-decoration: none;
-            margin: 0 10px;
         }
+
         .links a:hover {
             text-decoration: underline;
         }
-        .flash-messages {
-            margin-bottom: 20px;
-        }
-        .flash-message {
+
+        .alert {
             padding: 10px;
+            margin-bottom: 20px;
             border-radius: 5px;
-            margin-bottom: 10px;
+            text-align: center;
         }
-        .flash-success {
-            background: #d4edda;
-            color: #155724;
-            border: 1px solid #c3e6cb;
-        }
-        .flash-error {
+
+        .alert-error {
             background: #f8d7da;
             color: #721c24;
             border: 1px solid #f5c6cb;
         }
-        .flash-warning {
-            background: #fff3cd;
-            color: #856404;
-            border: 1px solid #ffeaa7;
+
+        .alert-success {
+            background: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
         }
-        .flash-info {
-            background: #cce7ff;
-            color: #004085;
-            border: 1px solid #b3d7ff;
+
+        .guest-section {
+            margin-top: 30px;
+            padding-top: 20px;
+            border-top: 1px solid #eee;
+            text-align: center;
+        }
+
+        .guest-section p {
+            color: #666;
+            margin-bottom: 15px;
         }
     </style>
 </head>
 <body>
     <div class="login-container">
-        <h1>🐘 Wildlife Incident Reporter</h1>
-        <h2>Login to Your Account</h2>
-
-        <div class="flash-messages">
-            {% with messages = get_flashed_messages(with_categories=true) %}
-                {% if messages %}
-                    {% for category, message in messages %}
-                        <div class="flash-message flash-{{ category }}">{{ message }}</div>
-                    {% endfor %}
-                {% endif %}
-            {% endwith %}
+        <div class="logo">
+            <h1>🐾 Wildlife Reporter</h1>
+            <p>Login to your account</p>
         </div>
 
-        <form method="POST">
+        {% with messages = get_flashed_messages(with_categories=true) %}
+            {% if messages %}
+                {% for category, message in messages %}
+                    <div class="alert alert-{{ 'success' if category == 'success' else 'error' }}">
+                        {{ message }}
+                    </div>
+                {% endfor %}
+            {% endif %}
+        {% endwith %}
+
+        <form method="POST" action="{{ url_for('login') }}">
             <div class="form-group">
-                <label for="email">Email Address:</label>
+                <label for="email">Email Address</label>
                 <input type="email" id="email" name="email" required>
             </div>
-            
+
             <div class="form-group">
-                <label for="password">Password:</label>
+                <label for="password">Password</label>
                 <input type="password" id="password" name="password" required>
             </div>
-            
+
             <button type="submit" class="btn">Login</button>
         </form>
 
-        <button onclick="window.location.href='/guest'" class="btn btn-secondary">
-            Continue as Guest
-        </button>
-
-        <div class="links">
-            <a href="/register">Create Account</a> | 
-            <a href="/">Back to Home</a>
-        </div>
-
-        <div style="margin-top: 20px; padding: 15px; background: #f8f9fa; border-radius: 5px; font-size: 14px;">
-            <strong>Guest Access:</strong> Browse and report incidents without an account. 
-            <strong>Registered Users:</strong> Export data and access advanced features.
+        <div class="guest-section">
+            <p>Don't have an account?</p>
+            <a href="{{ url_for('login_guest') }}" class="btn btn-secondary">Login as Guest</a>
+            <div class="links" style="margin-top: 15px;">
+                <a href="{{ url_for('register') }}">Create new account</a>
+            </div>
         </div>
     </div>
 </body>
