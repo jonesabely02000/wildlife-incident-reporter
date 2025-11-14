@@ -71,12 +71,26 @@ class Incident(db.Model):
     # Additional Information
     additional_comments = db.Column(db.Text, default="")
     
-    # User association
+    # User association (nullable for existing data)
     user_id = db.Column(db.Integer, db.ForeignKey('user.id'), nullable=True)
 
 @login_manager.user_loader
 def load_user(user_id):
     return User.query.get(int(user_id))
+
+# Database initialization with error handling
+def init_db():
+    try:
+        # Try to query the database to check if tables exist with new schema
+        db.session.query(Incident).first()
+        print("Database schema is up to date")
+    except Exception as e:
+        print(f"Database schema outdated: {e}")
+        print("Recreating database with new schema...")
+        # Drop all tables and recreate
+        db.drop_all()
+        db.create_all()
+        print("Database recreated successfully")
 
 # Authentication Routes
 @app.route('/login', methods=['GET', 'POST'])
@@ -88,7 +102,6 @@ def login():
         user = User.query.filter_by(email=email).first()
         
         if user and user.password == password:
-            # All accounts are auto-verified in this demo version
             login_user(user)
             flash('Logged in successfully!', 'success')
             return redirect(url_for('home'))
@@ -107,7 +120,6 @@ def register():
             flash('Email already registered.', 'error')
             return render_template('register.html')
         
-        # Create user with auto-verification for demo
         user = User(email=email, password=password, verified=True)
         db.session.add(user)
         db.session.commit()
@@ -129,11 +141,10 @@ def logout():
     flash('Logged out successfully.', 'success')
     return redirect(url_for('home'))
 
-# Manual Verification Routes (for existing users if needed)
+# Manual Verification Routes
 @app.route('/verify-manual')
 @login_required
 def verify_manual():
-    """Manual verification for demo purposes"""
     if current_user.verified:
         flash('Your account is already verified!', 'info')
         return redirect(url_for('home'))
@@ -143,7 +154,6 @@ def verify_manual():
 @app.route('/verify-now')
 @login_required
 def verify_now():
-    """Verify the current user manually"""
     if not current_user.verified:
         current_user.verified = True
         db.session.commit()
@@ -156,7 +166,6 @@ def verify_now():
 # Prediction/Forecasting Routes
 @app.route('/predictions')
 def predictions():
-    """Show hotspot predictions and forecasting"""
     try:
         incidents = Incident.query.all()
         
@@ -166,10 +175,7 @@ def predictions():
                                  day_patterns=[],
                                  message="Need more data for predictions (minimum 3 incidents)")
         
-        # Simple hotspot detection without heavy dependencies
         hotspots = simple_hotspot_detection(incidents)
-        
-        # Day of week patterns
         day_patterns = analyze_day_patterns_simple(incidents)
         
         return render_template('predictions.html', 
@@ -184,12 +190,10 @@ def predictions():
                              message=f"Error generating predictions: {str(e)}")
 
 def simple_hotspot_detection(incidents):
-    """Simple hotspot detection without scikit-learn"""
     try:
         if len(incidents) < 2:
             return []
             
-        # Group nearby incidents manually
         hotspots = []
         processed = set()
         
@@ -197,7 +201,6 @@ def simple_hotspot_detection(incidents):
             if i in processed:
                 continue
                 
-            # Find incidents within 0.01 degrees (~1km)
             nearby = []
             for j, other in enumerate(incidents):
                 if (abs(incident.latitude - other.latitude) < 0.01 and 
@@ -205,7 +208,7 @@ def simple_hotspot_detection(incidents):
                     nearby.append(other)
                     processed.add(j)
             
-            if len(nearby) >= 2:  # At least 2 incidents to be a hotspot
+            if len(nearby) >= 2:
                 avg_lat = sum(inc.latitude for inc in nearby) / len(nearby)
                 avg_lng = sum(inc.longitude for inc in nearby) / len(nearby)
                 
@@ -213,7 +216,7 @@ def simple_hotspot_detection(incidents):
                     'center_lat': avg_lat,
                     'center_lng': avg_lng,
                     'incident_count': len(nearby),
-                    'radius': 0.005  # Fixed radius for simplicity
+                    'radius': 0.005
                 })
         
         return sorted(hotspots, key=lambda x: x['incident_count'], reverse=True)[:5]
@@ -223,14 +226,12 @@ def simple_hotspot_detection(incidents):
         return []
 
 def analyze_day_patterns_simple(incidents):
-    """Analyze incident patterns by day of week without pandas"""
     try:
         day_counts = {}
         day_names = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday']
         
         for incident in incidents:
             try:
-                # Parse date manually
                 date_parts = incident.incident_date.split('-')
                 if len(date_parts) == 3:
                     year, month, day = int(date_parts[0]), int(date_parts[1]), int(date_parts[2])
@@ -247,7 +248,6 @@ def analyze_day_patterns_simple(incidents):
             count = day_counts.get(day, 0)
             percentage = (count / total_incidents) * 100 if total_incidents > 0 else 0
             
-            # Risk level based on percentage
             if percentage > 20:
                 risk = 'High'
             elif percentage > 10:
@@ -319,10 +319,17 @@ def report_incident():
 @app.route('/incidents')
 def get_incidents():
     try:
-        if current_user.is_authenticated and current_user.verified:
-            incidents = Incident.query.all()
-        else:
-            incidents = Incident.query.limit(50).all()  # Limit for guests
+        # Handle database schema issues gracefully
+        try:
+            if current_user.is_authenticated and current_user.verified:
+                incidents = Incident.query.all()
+            else:
+                incidents = Incident.query.limit(50).all()
+        except Exception as db_error:
+            # If there's a schema error, reset and try again
+            print(f"Database error: {db_error}")
+            init_db()
+            incidents = Incident.query.limit(50).all()
             
         return render_template('incidents.html', incidents=incidents)
     except Exception as e:
@@ -339,11 +346,9 @@ def export_incidents():
     try:
         incidents = Incident.query.all()
         
-        # Create CSV in memory
         output = StringIO()
         writer = csv.writer(output)
         
-        # Write header
         writer.writerow([
             'Start time', 'End time', 'Name of CRRT member', 'Date of incident', 'Time of incident',
             'GPS location', 'Latitude', 'Longitude', 'Altitude', 'Precision',
@@ -351,7 +356,6 @@ def export_incidents():
             'Was anyone injured or killed?', 'Estimated loss (Tsh or in-kind)', 'Additional comments'
         ])
         
-        # Write data
         for incident in incidents:
             writer.writerow([
                 incident.start_time,
@@ -372,7 +376,6 @@ def export_incidents():
                 incident.additional_comments
             ])
         
-        # Convert to BytesIO for binary transmission
         mem = BytesIO()
         mem.write(output.getvalue().encode('utf-8'))
         mem.seek(0)
@@ -428,7 +431,7 @@ def api_incidents():
         except Exception as e:
             return jsonify({'success': False, 'error': str(e)}), 500
     
-    else:  # GET request
+    else:
         incidents = Incident.query.all()
         return jsonify([{
             'id': i.id,
@@ -444,7 +447,6 @@ def api_incidents():
 
 @app.route('/api/sync-pending', methods=['POST'])
 def sync_pending():
-    """Sync pending incidents from offline storage"""
     try:
         data = request.get_json()
         pending_incidents = data.get('incidents', [])
@@ -496,10 +498,17 @@ def not_found(error):
 def internal_error(error):
     return render_template('home.html'), 500
 
-# Initialize database
+# Initialize database with error handling
 with app.app_context():
-    db.create_all()
-    print("Database initialized successfully")
+    try:
+        init_db()
+        print("Database initialized successfully")
+    except Exception as e:
+        print(f"Database initialization error: {e}")
+        # Force recreate database
+        db.drop_all()
+        db.create_all()
+        print("Database recreated after error")
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5000, debug=False)
