@@ -8,10 +8,6 @@ import csv
 from datetime import datetime, timedelta
 from io import BytesIO, StringIO
 import json
-import pandas as pd
-import numpy as np
-from sklearn.cluster import DBSCAN
-from sklearn.preprocessing import StandardScaler
 import secrets
 
 # Get the directory of the current script
@@ -197,26 +193,17 @@ def predictions():
     try:
         incidents = Incident.query.all()
         
-        if len(incidents) < 5:
+        if len(incidents) < 3:
             return render_template('predictions.html', 
                                  hotspots=[], 
                                  day_patterns=[],
-                                 message="Need more data for predictions (minimum 5 incidents)")
+                                 message="Need more data for predictions (minimum 3 incidents)")
         
-        # Convert to DataFrame for analysis
-        df = pd.DataFrame([{
-            'latitude': i.latitude,
-            'longitude': i.longitude,
-            'incident_date': i.incident_date,
-            'incident_type': i.incident_type,
-            'elephants_observed': i.elephants_observed
-        } for i in incidents])
-        
-        # Hotspot detection using DBSCAN
-        hotspots = detect_hotspots(df)
+        # Simple hotspot detection without heavy dependencies
+        hotspots = simple_hotspot_detection(incidents)
         
         # Day of week patterns
-        day_patterns = analyze_day_patterns(df)
+        day_patterns = analyze_day_patterns_simple(incidents)
         
         return render_template('predictions.html', 
                              hotspots=hotspots, 
@@ -229,56 +216,69 @@ def predictions():
                              day_patterns=[],
                              message=f"Error generating predictions: {str(e)}")
 
-def detect_hotspots(df):
-    """Detect incident hotspots using clustering"""
+def simple_hotspot_detection(incidents):
+    """Simple hotspot detection without scikit-learn"""
     try:
-        if len(df) < 2:
+        if len(incidents) < 2:
             return []
             
-        # Prepare coordinates for clustering
-        coords = df[['latitude', 'longitude']].values
-        
-        # Standardize coordinates
-        scaler = StandardScaler()
-        coords_scaled = scaler.fit_transform(coords)
-        
-        # DBSCAN clustering
-        dbscan = DBSCAN(eps=0.5, min_samples=2)
-        clusters = dbscan.fit_predict(coords_scaled)
-        
-        # Calculate cluster centers and counts
+        # Group nearby incidents manually
         hotspots = []
-        for cluster_id in set(clusters):
-            if cluster_id != -1:  # -1 represents noise (not in any cluster)
-                cluster_points = coords[clusters == cluster_id]
-                center = cluster_points.mean(axis=0)
-                count = len(cluster_points)
+        processed = set()
+        
+        for i, incident in enumerate(incidents):
+            if i in processed:
+                continue
+                
+            # Find incidents within 0.01 degrees (~1km)
+            nearby = []
+            for j, other in enumerate(incidents):
+                if (abs(incident.latitude - other.latitude) < 0.01 and 
+                    abs(incident.longitude - other.longitude) < 0.01):
+                    nearby.append(other)
+                    processed.add(j)
+            
+            if len(nearby) >= 2:  # At least 2 incidents to be a hotspot
+                avg_lat = sum(inc.latitude for inc in nearby) / len(nearby)
+                avg_lng = sum(inc.longitude for inc in nearby) / len(nearby)
                 
                 hotspots.append({
-                    'center_lat': center[0],
-                    'center_lng': center[1],
-                    'incident_count': count,
-                    'radius': cluster_points.std(axis=0).mean() * 10000  # Approximate radius in meters
+                    'center_lat': avg_lat,
+                    'center_lng': avg_lng,
+                    'incident_count': len(nearby),
+                    'radius': 0.005  # Fixed radius for simplicity
                 })
         
-        return sorted(hotspots, key=lambda x: x['incident_count'], reverse=True)[:5]  # Top 5 hotspots
+        return sorted(hotspots, key=lambda x: x['incident_count'], reverse=True)[:5]
         
     except Exception as e:
         print(f"Hotspot detection error: {e}")
         return []
 
-def analyze_day_patterns(df):
-    """Analyze incident patterns by day of week"""
+def analyze_day_patterns_simple(incidents):
+    """Analyze incident patterns by day of week without pandas"""
     try:
-        df['date'] = pd.to_datetime(df['incident_date'])
-        df['day_of_week'] = df['date'].dt.day_name()
+        day_counts = {}
+        day_names = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday']
         
-        day_counts = df['day_of_week'].value_counts()
+        for incident in incidents:
+            try:
+                # Parse date manually
+                date_parts = incident.incident_date.split('-')
+                if len(date_parts) == 3:
+                    year, month, day = int(date_parts[0]), int(date_parts[1]), int(date_parts[2])
+                    date_obj = datetime(year, month, day)
+                    day_name = day_names[date_obj.weekday()]
+                    day_counts[day_name] = day_counts.get(day_name, 0) + 1
+            except:
+                continue
+        
         day_patterns = []
+        total_incidents = len(incidents)
         
-        for day in ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday']:
+        for day in day_names:
             count = day_counts.get(day, 0)
-            percentage = (count / len(df)) * 100 if len(df) > 0 else 0
+            percentage = (count / total_incidents) * 100 if total_incidents > 0 else 0
             
             # Risk level based on percentage
             if percentage > 20:
@@ -371,12 +371,154 @@ def export_incidents():
         
     try:
         incidents = Incident.query.all()
-        # ... rest of export code remains the same
-        # [Keep your existing export code here]
+        
+        # Create CSV in memory
+        output = StringIO()
+        writer = csv.writer(output)
+        
+        # Write header
+        writer.writerow([
+            'Start time', 'End time', 'Name of CRRT member', 'Date of incident', 'Time of incident',
+            'GPS location', 'Latitude', 'Longitude', 'Altitude', 'Precision',
+            'Type of incident', 'Number of elephants observed', 'Response outcome',
+            'Was anyone injured or killed?', 'Estimated loss (Tsh or in-kind)', 'Additional comments'
+        ])
+        
+        # Write data
+        for incident in incidents:
+            writer.writerow([
+                incident.start_time,
+                incident.end_time,
+                incident.crrt_member_name,
+                incident.incident_date,
+                incident.incident_time,
+                incident.gps_location,
+                incident.latitude,
+                incident.longitude,
+                incident.altitude,
+                incident.precision,
+                incident.incident_type,
+                incident.elephants_observed,
+                incident.response_outcome,
+                incident.injuries_or_deaths,
+                incident.estimated_loss,
+                incident.additional_comments
+            ])
+        
+        # Convert to BytesIO for binary transmission
+        mem = BytesIO()
+        mem.write(output.getvalue().encode('utf-8'))
+        mem.seek(0)
+        output.close()
+        
+        return send_file(
+            mem,
+            as_attachment=True,
+            download_name='wildlife_incidents.csv',
+            mimetype='text/csv'
+        )
         
     except Exception as e:
         flash(f'Error exporting data: {str(e)}', 'error')
         return redirect(url_for('get_incidents'))
+
+# API Routes
+@app.route('/api/incidents', methods=['GET', 'POST'])
+def api_incidents():
+    if request.method == 'POST':
+        try:
+            data = request.get_json()
+            
+            incident = Incident(
+                start_time=data.get('start_time', ''),
+                end_time=data.get('end_time', ''),
+                crrt_member_name=data.get('crrt_member_name', ''),
+                incident_date=data.get('incident_date', ''),
+                incident_time=data.get('incident_time', ''),
+                latitude=data.get('latitude', 0),
+                longitude=data.get('longitude', 0),
+                altitude=data.get('altitude', 0),
+                precision=data.get('precision', 0),
+                gps_location=f"{data.get('latitude', 0)} {data.get('longitude', 0)} {data.get('altitude', 0)} {data.get('precision', 0)}",
+                incident_type=data.get('incident_type', ''),
+                elephants_observed=data.get('elephants_observed', 0),
+                response_noise=data.get('response_noise', False),
+                response_fire=data.get('response_fire', False),
+                response_chili=data.get('response_chili', False),
+                response_flashlight=data.get('response_flashlight', False),
+                response_other=data.get('response_other', False),
+                response_other_text=data.get('response_other_text', ''),
+                response_outcome=data.get('response_outcome', ''),
+                injuries_or_deaths=data.get('injuries_or_deaths', ''),
+                estimated_loss=data.get('estimated_loss', 0),
+                additional_comments=data.get('additional_comments', '')
+            )
+            
+            db.session.add(incident)
+            db.session.commit()
+            return jsonify({'success': True, 'id': incident.id})
+            
+        except Exception as e:
+            return jsonify({'success': False, 'error': str(e)}), 500
+    
+    else:  # GET request
+        incidents = Incident.query.all()
+        return jsonify([{
+            'id': i.id,
+            'crrt_member_name': i.crrt_member_name,
+            'incident_date': i.incident_date,
+            'incident_time': i.incident_time,
+            'latitude': i.latitude,
+            'longitude': i.longitude,
+            'incident_type': i.incident_type,
+            'elephants_observed': i.elephants_observed,
+            'estimated_loss': i.estimated_loss
+        } for i in incidents])
+
+@app.route('/api/sync-pending', methods=['POST'])
+def sync_pending():
+    """Sync pending incidents from offline storage"""
+    try:
+        data = request.get_json()
+        pending_incidents = data.get('incidents', [])
+        
+        synced_ids = []
+        for incident_data in pending_incidents:
+            incident = Incident(
+                start_time=incident_data.get('start_time', ''),
+                end_time=incident_data.get('end_time', ''),
+                crrt_member_name=incident_data.get('crrt_member_name', ''),
+                incident_date=incident_data.get('incident_date', ''),
+                incident_time=incident_data.get('incident_time', ''),
+                latitude=incident_data.get('latitude', 0),
+                longitude=incident_data.get('longitude', 0),
+                altitude=incident_data.get('altitude', 0),
+                precision=incident_data.get('precision', 0),
+                gps_location=f"{incident_data.get('latitude', 0)} {incident_data.get('longitude', 0)} {incident_data.get('altitude', 0)} {incident_data.get('precision', 0)}",
+                incident_type=incident_data.get('incident_type', ''),
+                elephants_observed=incident_data.get('elephants_observed', 0),
+                response_noise=incident_data.get('response_noise', False),
+                response_fire=incident_data.get('response_fire', False),
+                response_chili=incident_data.get('response_chili', False),
+                response_flashlight=incident_data.get('response_flashlight', False),
+                response_other=incident_data.get('response_other', False),
+                response_other_text=incident_data.get('response_other_text', ''),
+                response_outcome=incident_data.get('response_outcome', ''),
+                injuries_or_deaths=incident_data.get('injuries_or_deaths', ''),
+                estimated_loss=incident_data.get('estimated_loss', 0),
+                additional_comments=incident_data.get('additional_comments', '')
+            )
+            
+            db.session.add(incident)
+            db.session.flush()
+            synced_ids.append({'local_id': incident_data.get('local_id'), 'server_id': incident.id})
+        
+        db.session.commit()
+        return jsonify({'success': True, 'synced': synced_ids})
+        
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'success': False, 'error': str(e)}), 500
 
 # Error handlers
 @app.errorhandler(404)
