@@ -1,12 +1,13 @@
 from flask import Flask, render_template, request, jsonify, redirect, url_for, flash, session
 from flask_sqlalchemy import SQLAlchemy
-from datetime import datetime
+from datetime import datetime, timedelta
 import os
 
 app = Flask(__name__)
-app.config['SECRET_KEY'] = 'dev-key-123-change-in-production'
+app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', 'dev-key-123-change-in-production')
 app.config['SQLALCHEMY_DATABASE_URI'] = os.environ.get('DATABASE_URL', 'sqlite:///wildlife.db')
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
+app.config['PERMANENT_SESSION_LIFETIME'] = timedelta(days=7)
 
 db = SQLAlchemy(app)
 
@@ -17,6 +18,21 @@ class User(db.Model):
     password = db.Column(db.String(80), nullable=False)
     verified = db.Column(db.Boolean, default=True)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
+
+    @property
+    def is_authenticated(self):
+        return True
+
+    @property
+    def is_active(self):
+        return True
+
+    @property
+    def is_anonymous(self):
+        return False
+
+    def get_id(self):
+        return str(self.id)
 
 class Incident(db.Model):
     id = db.Column(db.Integer, primary_key=True)
@@ -31,8 +47,8 @@ class Incident(db.Model):
 
 # Helper function to get current user
 def get_current_user():
-    if 'user_email' in session:
-        return User.query.filter_by(email=session['user_email']).first()
+    if 'user_id' in session:
+        return User.query.get(session['user_id'])
     return None
 
 # Login required decorator
@@ -40,9 +56,10 @@ def login_required(f):
     from functools import wraps
     @wraps(f)
     def decorated_function(*args, **kwargs):
-        if 'user_email' not in session:
+        user = get_current_user()
+        if not user:
             flash('Please login first', 'error')
-            return redirect(url_for('login'))
+            return redirect(url_for('login', next=request.url))
         return f(*args, **kwargs)
     return decorated_function
 
@@ -99,6 +116,10 @@ def predictions():
 
 @app.route('/login', methods=['GET', 'POST'])
 def login():
+    # If user is already logged in, redirect to home
+    if get_current_user():
+        return redirect(url_for('home'))
+    
     if request.method == 'POST':
         email = request.form.get('email', '').strip()
         password = request.form.get('password', '')
@@ -107,21 +128,26 @@ def login():
         
         user = User.query.filter_by(email=email, password=password).first()
         if user:
-            session['user_email'] = email
+            session['user_id'] = user.id
+            session['user_email'] = user.email
             session.permanent = True
             flash('Login successful!', 'success')
+            
+            next_page = request.args.get('next')
+            if next_page:
+                return redirect(next_page)
             return redirect(url_for('home'))
         else:
             flash('Invalid email or password', 'error')
-    
-    # If user is already logged in, redirect to home
-    if get_current_user():
-        return redirect(url_for('home'))
     
     return render_template('login.html')
 
 @app.route('/register', methods=['GET', 'POST'])
 def register():
+    # If user is already logged in, redirect to home
+    if get_current_user():
+        return redirect(url_for('home'))
+    
     if request.method == 'POST':
         email = request.form.get('email', '').strip().lower()
         password = request.form.get('password', '')
@@ -151,8 +177,11 @@ def register():
             db.session.add(user)
             db.session.commit()
             
-            session['user_email'] = email
+            # Set session after successful registration
+            session['user_id'] = user.id
+            session['user_email'] = user.email
             session.permanent = True
+            
             flash('Registration successful!', 'success')
             return redirect(url_for('home'))
         except Exception as e:
@@ -160,14 +189,14 @@ def register():
             print(f"Registration error: {str(e)}")
             flash('Registration failed. Please try again.', 'error')
     
-    # If user is already logged in, redirect to home
-    if get_current_user():
-        return redirect(url_for('home'))
-    
     return render_template('register.html')
 
 @app.route('/login-guest')
 def login_guest():
+    # If user is already logged in, redirect to home
+    if get_current_user():
+        return redirect(url_for('home'))
+    
     print("Guest login attempt")
     
     try:
@@ -183,8 +212,10 @@ def login_guest():
         else:
             print("Using existing guest user")
         
-        session['user_email'] = guest_email
+        session['user_id'] = guest_user.id
+        session['user_email'] = guest_user.email
         session.permanent = True
+        
         flash('Logged in as guest!', 'success')
         return redirect(url_for('home'))
         
@@ -195,9 +226,32 @@ def login_guest():
 
 @app.route('/logout')
 def logout():
-    session.pop('user_email', None)
+    session.clear()
     flash('Logged out successfully', 'success')
     return redirect(url_for('index'))
+
+# Debug route to check session
+@app.route('/debug-session')
+def debug_session():
+    user = get_current_user()
+    session_data = dict(session)
+    
+    # Remove any sensitive data from session display
+    safe_session = {k: v for k, v in session_data.items() if k not in ['_permanent']}
+    
+    debug_info = {
+        'session_data': safe_session,
+        'current_user': {
+            'id': user.id if user else None,
+            'email': user.email if user else None,
+            'verified': user.verified if user else None
+        },
+        'is_authenticated': user is not None,
+        'total_users': User.query.count(),
+        'total_incidents': Incident.query.count() if user else 0
+    }
+    
+    return jsonify(debug_info)
 
 # API Routes
 @app.route('/api/import-incidents', methods=['POST'])
@@ -307,6 +361,42 @@ def get_statistics():
         'high_risk_areas': min(5, total_incidents),
         'data_coverage': min(100, total_incidents * 10)
     })
+
+# Test route to create sample data
+@app.route('/test-data')
+def test_data():
+    user = get_current_user()
+    if not user:
+        return jsonify({'error': 'Please login first'})
+    
+    # Create some test incidents
+    incidents = [
+        Incident(
+            date=datetime.now(),
+            latitude=-3.557359,
+            longitude=37.784127,
+            species="Giraffe",
+            incident_type="Property Damage",
+            severity="Low",
+            reported_by=user.email
+        ),
+        Incident(
+            date=datetime.now(),
+            latitude=-3.577551,
+            longitude=37.797382,
+            species="Leopard",
+            incident_type="Crop Raiding",
+            severity="High",
+            reported_by=user.email
+        )
+    ]
+    
+    for incident in incidents:
+        db.session.add(incident)
+    
+    db.session.commit()
+    
+    return jsonify({'message': 'Test data created successfully', 'incidents_added': len(incidents)})
 
 # Initialize database when app starts
 print("Starting Wildlife Incident Reporter...")

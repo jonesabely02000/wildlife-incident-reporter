@@ -202,6 +202,28 @@
             transform: translateY(-2px);
         }
 
+        .debug-info {
+            background: #e8f5e8;
+            padding: 15px;
+            border-radius: 8px;
+            margin: 15px 0;
+            border-left: 4px solid #4CAF50;
+            font-size: 14px;
+        }
+
+        .debug-info strong {
+            color: #2e7d32;
+        }
+
+        .debug-info a {
+            color: #1976d2;
+            text-decoration: none;
+        }
+
+        .debug-info a:hover {
+            text-decoration: underline;
+        }
+
         @media (max-width: 768px) {
             .header h1 {
                 font-size: 2em;
@@ -223,6 +245,11 @@
             .nav-links a {
                 width: 200px;
                 text-align: center;
+            }
+
+            .debug-info {
+                font-size: 12px;
+                padding: 10px;
             }
         }
     </style>
@@ -253,6 +280,17 @@
                     {% endfor %}
                 {% endif %}
             {% endwith %}
+
+            <!-- Debug Info Section -->
+            {% if user %}
+            <div class="debug-info">
+                <strong>Debug Info:</strong> 
+                Logged in as {{ user.email }} | 
+                User ID: {{ user.id }} |
+                Session Active: Yes |
+                <a href="/debug-session" target="_blank">Check Session Details</a>
+            </div>
+            {% endif %}
 
             <div class="auth-buttons">
                 {% if user and user.is_authenticated %}
