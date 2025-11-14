@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Verify Account - Wildlife Incident Reporter</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 20px;
+            background-image: url('/static/wildlife_bg.jpg');
+            background-size: cover;
+            background-attachment: fixed;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+        }
+        .verify-container {
+            background: rgba(255, 255, 255, 0.95);
+            padding: 40px;
+            border-radius: 15px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
+            max-width: 500px;
+            width: 100%;
+            text-align: center;
+        }
+        h1 {
+            color: #2c3e50;
+            margin-bottom: 20px;
+        }
+        .btn {
+            background: #27ae60;
+            color: white;
+            padding: 15px 30px;
+            border: none;
+            border-radius: 5px;
+            font-size: 18px;
+            cursor: pointer;
+            margin: 20px 0;
+            text-decoration: none;
+            display: inline-block;
+            transition: background 0.3s;
+        }
+        .btn:hover {
+            background: #219a52;
+        }
+        .info-box {
+            background: #e8f4f8;
+            padding: 20px;
+            border-radius: 8px;
+            margin: 20px 0;
+            text-align: left;
+        }
+        .features {
+            text-align: left;
+            margin: 20px 0;
+        }
+        .features ul {
+            margin: 10px 0;
+            padding-left: 20px;
+        }
+        .features li {
+            margin: 8px 0;
+        }
+    </style>
+</head>
+<body>
+    <div class="verify-container">
+        <h1>🔐 Verify Your Account</h1>
+        
+        <div class="info-box">
+            <h3>Demo Verification</h3>
+            <p>In this demo version, you can verify your account instantly to access all features including data export.</p>
+        </div>
+
+        <div class="features">
+            <strong>After verification, you'll get access to:</strong>
+            <ul>
+                <li>✅ Export incident data to CSV</li>
+                <li>✅ Full access to prediction insights</li>
+                <li>✅ Unlimited incident viewing</li>
+                <li>✅ Priority features</li>
+            </ul>
+        </div>
+
+        <a href="{{ url_for('verify_now') }}" class="btn">
+            ✅ Verify My Account Now
+        </a>
+
+        <div style="margin-top: 20px;">
+            <a href="{{ url_for('home') }}">← Back to Home</a>
+        </div>
+
+        <div style="margin-top: 20px; padding: 15px; background: #f8f9fa; border-radius: 5px; font-size: 14px;">
+            <strong>Note:</strong> In a production environment, this would require email verification. 
+            This is a demo-friendly version.
+        </div>
+    </div>
+</body>
+</html>

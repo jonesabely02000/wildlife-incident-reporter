@@ -1,14 +1,11 @@
 from flask import Flask, render_template, request, send_file, redirect, url_for, jsonify, flash
 from flask_sqlalchemy import SQLAlchemy
 from flask_login import LoginManager, UserMixin, login_user, logout_user, login_required, current_user
-from flask_mail import Mail, Message
-from itsdangerous import URLSafeTimedSerializer
 import os
 import csv
-from datetime import datetime, timedelta
+from datetime import datetime
 from io import BytesIO, StringIO
 import json
-import secrets
 
 # Get the directory of the current script
 base_dir = os.path.abspath(os.path.dirname(__file__))
@@ -23,29 +20,17 @@ app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', 'dev-key-change-in-produ
 app.config['SQLALCHEMY_DATABASE_URI'] = os.environ.get('DATABASE_URL', 'sqlite:///incidents.db').replace('postgres://', 'postgresql://')
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 
-# Email configuration (for verification)
-app.config['MAIL_SERVER'] = 'smtp.gmail.com'
-app.config['MAIL_PORT'] = 587
-app.config['MAIL_USE_TLS'] = True
-app.config['MAIL_USERNAME'] = os.environ.get('MAIL_USERNAME', '')
-app.config['MAIL_PASSWORD'] = os.environ.get('MAIL_PASSWORD', '')
-app.config['MAIL_DEFAULT_SENDER'] = os.environ.get('MAIL_DEFAULT_SENDER', '')
-
 db = SQLAlchemy(app)
-mail = Mail(app)
 login_manager = LoginManager(app)
 login_manager.login_view = 'login'
 login_manager.login_message = 'Please log in to access this page.'
-
-serializer = URLSafeTimedSerializer(app.config['SECRET_KEY'])
 
 # User Model
 class User(UserMixin, db.Model):
     id = db.Column(db.Integer, primary_key=True)
     email = db.Column(db.String(100), unique=True, nullable=False)
     password = db.Column(db.String(100), nullable=False)
-    verified = db.Column(db.Boolean, default=False)
-    verification_token = db.Column(db.String(100))
+    verified = db.Column(db.Boolean, default=True)  # Auto-verified for demo
     created_at = db.Column(db.DateTime, default=datetime.now)
 
 class Incident(db.Model):
@@ -102,13 +87,11 @@ def login():
         
         user = User.query.filter_by(email=email).first()
         
-        if user and user.password == password:  # In production, use proper password hashing!
-            if user.verified:
-                login_user(user)
-                flash('Logged in successfully!', 'success')
-                return redirect(url_for('home'))
-            else:
-                flash('Please verify your email address first.', 'warning')
+        if user and user.password == password:
+            # All accounts are auto-verified in this demo version
+            login_user(user)
+            flash('Logged in successfully!', 'success')
+            return redirect(url_for('home'))
         else:
             flash('Invalid email or password.', 'error')
     
@@ -124,39 +107,18 @@ def register():
             flash('Email already registered.', 'error')
             return render_template('register.html')
         
-        # Generate verification token
-        token = secrets.token_urlsafe(32)
-        
-        user = User(email=email, password=password, verification_token=token)  # Hash passwords in production!
+        # Create user with auto-verification for demo
+        user = User(email=email, password=password, verified=True)
         db.session.add(user)
         db.session.commit()
         
-        # Send verification email (optional - can be skipped for demo)
-        try:
-            send_verification_email(user)
-            flash('Registration successful! Please check your email for verification.', 'success')
-        except:
-            flash('Registration successful! But email verification failed.', 'warning')
-        
+        flash('Registration successful! You can now log in.', 'success')
         return redirect(url_for('login'))
     
     return render_template('register.html')
 
-@app.route('/verify/<token>')
-def verify_email(token):
-    user = User.query.filter_by(verification_token=token).first()
-    if user:
-        user.verified = True
-        user.verification_token = None
-        db.session.commit()
-        flash('Email verified successfully! You can now log in.', 'success')
-    else:
-        flash('Invalid verification token.', 'error')
-    return redirect(url_for('login'))
-
 @app.route('/guest')
 def guest_access():
-    # Create a temporary guest user or use session-based guest access
     flash('You are browsing as a guest. Some features are limited.', 'info')
     return redirect(url_for('home'))
 
@@ -167,24 +129,29 @@ def logout():
     flash('Logged out successfully.', 'success')
     return redirect(url_for('home'))
 
-def send_verification_email(user):
-    """Send verification email (optional for demo)"""
-    try:
-        token = serializer.dumps(user.email, salt='email-verification')
-        verify_url = url_for('verify_email', token=token, _external=True)
-        
-        msg = Message('Verify Your Email - Wildlife Incident Reporter',
-                      recipients=[user.email])
-        msg.body = f'''Please verify your email by clicking the link below:
-{verify_url}
+# Manual Verification Routes (for existing users if needed)
+@app.route('/verify-manual')
+@login_required
+def verify_manual():
+    """Manual verification for demo purposes"""
+    if current_user.verified:
+        flash('Your account is already verified!', 'info')
+        return redirect(url_for('home'))
+    
+    return render_template('verify_manual.html')
 
-If you didn't create an account, please ignore this email.
-'''
-        mail.send(msg)
-        return True
-    except Exception as e:
-        print(f"Email error: {e}")
-        return False
+@app.route('/verify-now')
+@login_required
+def verify_now():
+    """Verify the current user manually"""
+    if not current_user.verified:
+        current_user.verified = True
+        db.session.commit()
+        flash('Account verified successfully! You can now export data.', 'success')
+    else:
+        flash('Account already verified!', 'info')
+    
+    return redirect(url_for('home'))
 
 # Prediction/Forecasting Routes
 @app.route('/predictions')
@@ -301,7 +268,7 @@ def analyze_day_patterns_simple(incidents):
         print(f"Day pattern analysis error: {e}")
         return []
 
-# Update existing routes with authentication
+# Main Routes
 @app.route('/')
 def home():
     return render_template('home.html')
