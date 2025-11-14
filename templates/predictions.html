@@ -149,6 +149,122 @@
             text-align: center;
             color: #856404;
         }
+        .upload-section {
+            background: #e8f4f8;
+            border-left: 4px solid #3498db;
+        }
+        .file-format {
+            background: white;
+            padding: 15px;
+            border-radius: 5px;
+            margin-top: 15px;
+        }
+        .file-format ul {
+            margin: 10px 0;
+            padding-left: 20px;
+        }
+        .file-format li {
+            margin: 8px 0;
+        }
+        .upload-form {
+            display: flex;
+            gap: 10px;
+            align-items: center;
+            flex-wrap: wrap;
+            margin: 20px 0;
+        }
+        .file-input {
+            padding: 10px;
+            border: 2px dashed #3498db;
+            border-radius: 5px;
+            background: white;
+            flex: 1;
+            min-width: 200px;
+        }
+        .upload-btn {
+            background: #3498db;
+            color: white;
+            padding: 10px 20px;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            text-decoration: none;
+            display: inline-block;
+        }
+        .upload-btn:hover {
+            background: #2980b9;
+        }
+        .template-btn {
+            background: #27ae60;
+            color: white;
+            padding: 10px 20px;
+            text-decoration: none;
+            border-radius: 5px;
+            display: inline-block;
+        }
+        .template-btn:hover {
+            background: #219a52;
+        }
+        .auth-prompt {
+            text-align: center;
+            padding: 20px;
+            background: #fff3cd;
+            border-radius: 8px;
+            margin: 20px 0;
+        }
+        .auth-prompt a {
+            color: #3498db;
+            font-weight: bold;
+            text-decoration: none;
+        }
+        .auth-prompt a:hover {
+            text-decoration: underline;
+        }
+        .seasonal-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            gap: 10px;
+            margin-top: 20px;
+        }
+        .month-card {
+            background: white;
+            padding: 15px;
+            border-radius: 8px;
+            text-align: center;
+            box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+        }
+        .month-card.high { border-top: 4px solid #e74c3c; }
+        .month-card.medium { border-top: 4px solid #f39c12; }
+        .month-card.low { border-top: 4px solid #27ae60; }
+        .flash-messages {
+            margin-bottom: 20px;
+        }
+        .flash-message {
+            padding: 10px;
+            border-radius: 5px;
+            margin-bottom: 10px;
+            text-align: center;
+        }
+        .flash-success {
+            background: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+        .flash-error {
+            background: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+        .flash-warning {
+            background: #fff3cd;
+            color: #856404;
+            border: 1px solid #ffeaa7;
+        }
+        .flash-info {
+            background: #cce7ff;
+            color: #004085;
+            border: 1px solid #b3d7ff;
+        }
     </style>
 </head>
 <body>
@@ -165,6 +281,72 @@
                 <a href="/login">🔐 Login</a>
             {% endif %}
         </nav>
+
+        <!-- Flash Messages -->
+        <div class="flash-messages">
+            {% with messages = get_flashed_messages(with_categories=true) %}
+                {% if messages %}
+                    {% for category, message in messages %}
+                        <div class="flash-message flash-{{ category }}">{{ message }}</div>
+                    {% endfor %}
+                {% endif %}
+            {% endwith %}
+        </div>
+
+        <!-- Historical Data Upload Section -->
+        {% if current_user.is_authenticated %}
+        <div class="section upload-section">
+            <h2>📤 Upload Historical Data</h2>
+            <p>Enhance predictions by uploading historical incident data from Excel or CSV files.</p>
+            
+            <form action="{{ url_for('upload_historical_data') }}" method="POST" enctype="multipart/form-data" class="upload-form">
+                <input type="file" name="historical_file" accept=".xlsx,.xls,.csv" required class="file-input">
+                <button type="submit" class="upload-btn">
+                    📊 Upload & Analyze
+                </button>
+                <a href="{{ url_for('download_template') }}" class="template-btn">
+                    📝 Download Template
+                </a>
+            </form>
+            
+            <div class="file-format">
+                <h4>📋 Expected File Format:</h4>
+                <ul>
+                    <li><strong>Date:</strong> YYYY-MM-DD format (e.g., 2024-01-15)</li>
+                    <li><strong>Latitude:</strong> Decimal coordinates (e.g., -3.4034)</li>
+                    <li><strong>Longitude:</strong> Decimal coordinates (e.g., 36.8005)</li>
+                    <li><strong>Type:</strong> Incident type (e.g., "Crop raiding", "Property damage")</li>
+                    <li><strong>Elephants:</strong> Number of elephants observed (e.g., 5)</li>
+                    <li><strong>Loss:</strong> Estimated financial loss in Tsh (e.g., 150000)</li>
+                </ul>
+                <p style="font-size: 14px; color: #666; margin: 5px 0;">
+                    <strong>Supported formats:</strong> Excel (.xlsx, .xls) or CSV files
+                </p>
+            </div>
+        </div>
+        {% else %}
+        <div class="auth-prompt">
+            🔐 <a href="/login">Login</a> to upload historical data and enhance predictions
+        </div>
+        {% endif %}
+
+        <!-- Data Overview -->
+        {% if historical_count %}
+        <div class="stats-overview">
+            <div class="stat-card" style="background: linear-gradient(135deg, #667eea, #764ba2); color: white;">
+                <div class="stat-value">{{ historical_count }}</div>
+                <div class="stat-label">Historical Records</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-value">{{ total_incidents }}</div>
+                <div class="stat-label">Current Incidents</div>
+            </div>
+            <div class="stat-card">
+                <div class="stat-value">{{ total_incidents + historical_count }}</div>
+                <div class="stat-label">Total Data Points</div>
+            </div>
+        </div>
+        {% endif %}
 
         {% if message %}
         <div class="message">
@@ -196,25 +378,28 @@
         <!-- Hotspots Section -->
         <div class="section">
             <h2>📍 Incident Hotspots</h2>
-            <p>Areas with high concentration of wildlife incidents:</p>
+            <p>Areas with high concentration of wildlife incidents (based on frequency, elephant density, and financial impact):</p>
             
             {% if hotspots %}
             <div class="hotspot-grid">
                 {% for hotspot in hotspots %}
                 <div class="hotspot-card 
-                    {% if hotspot.incident_count > 5 %}high-risk
-                    {% elif hotspot.incident_count > 2 %}medium-risk
+                    {% if hotspot.risk_score > 2.0 %}high-risk
+                    {% elif hotspot.risk_score > 1.0 %}medium-risk
                     {% else %}low-risk{% endif %}">
                     <h3>Hotspot #{{ loop.index }}</h3>
                     <p><strong>Location:</strong> {{ "%.4f"|format(hotspot.center_lat) }}, {{ "%.4f"|format(hotspot.center_lng) }}</p>
                     <p><strong>Incidents:</strong> {{ hotspot.incident_count }}</p>
+                    <p><strong>Total Elephants:</strong> {{ hotspot.total_elephants }}</p>
+                    <p><strong>Total Loss:</strong> Tsh {{ "{:,.0f}".format(hotspot.total_loss) }}</p>
+                    <p><strong>Risk Score:</strong> {{ hotspot.risk_score }}</p>
                     <p><strong>Risk Level:</strong> 
                         <span class="risk-badge 
-                            {% if hotspot.incident_count > 5 %}risk-high
-                            {% elif hotspot.incident_count > 2 %}risk-medium
+                            {% if hotspot.risk_score > 2.0 %}risk-high
+                            {% elif hotspot.risk_score > 1.0 %}risk-medium
                             {% else %}risk-low{% endif %}">
-                            {% if hotspot.incident_count > 5 %}High
-                            {% elif hotspot.incident_count > 2 %}Medium
+                            {% if hotspot.risk_score > 2.0 %}High
+                            {% elif hotspot.risk_score > 1.0 %}Medium
                             {% else %}Low{% endif %}
                         </span>
                     </p>
@@ -236,7 +421,7 @@
         <!-- Day Patterns Section -->
         <div class="section">
             <h2>📅 Day of Week Patterns</h2>
-            <p>Incident frequency by day of the week:</p>
+            <p>Incident frequency and severity by day of the week:</p>
             
             {% if day_patterns %}
             <div class="day-patterns">
@@ -245,6 +430,10 @@
                     <h3>{{ day.day }}</h3>
                     <div class="percentage">{{ day.percentage }}%</div>
                     <div class="count">{{ day.count }} incidents</div>
+                    <div style="margin: 8px 0; font-size: 14px;">
+                        <div>🐘 Avg: {{ day.avg_elephants }}</div>
+                        <div>💰 Tsh {{ "{:,.0f}".format(day.avg_loss) }}</div>
+                    </div>
                     <span class="risk-badge risk-{{ day.risk.lower() }}">
                         {{ day.risk }} Risk
                     </span>
@@ -258,36 +447,87 @@
             {% endif %}
         </div>
 
+        <!-- Seasonal Patterns Section -->
+        {% if seasonal_patterns %}
+        <div class="section">
+            <h2>🌦️ Seasonal Patterns</h2>
+            <p>Incident distribution across months:</p>
+            
+            <div class="seasonal-grid">
+                {% for month in seasonal_patterns %}
+                <div class="month-card 
+                    {% if month.percentage > 15 %}high
+                    {% elif month.percentage > 8 %}medium
+                    {% else %}low{% endif %}">
+                    <h4>{{ month.month[:3] }}</h4>
+                    <div class="percentage" style="font-size: 18px;">{{ month.percentage }}%</div>
+                    <div class="count">{{ month.count }} incidents</div>
+                </div>
+                {% endfor %}
+            </div>
+        </div>
+        {% endif %}
+
         <!-- Recommendations Section -->
         <div class="section">
-            <h2>💡 Recommendations</h2>
+            <h2>💡 Recommendations & Insights</h2>
             {% if hotspots %}
             <div style="background: #e8f4f8; padding: 20px; border-radius: 8px;">
                 <h3>Based on Current Analysis:</h3>
-                <ul>
-                    <li>Increase patrols in identified hotspot areas</li>
-                    <li>Focus resources on high-risk days</li>
-                    <li>Consider preventive measures in frequently affected locations</li>
-                    <li>Monitor trends for seasonal patterns</li>
+                <ul style="margin: 15px 0; padding-left: 20px;">
+                    <li><strong>High-Risk Areas:</strong> Increase patrols in identified hotspot locations</li>
+                    <li><strong>Peak Days:</strong> Focus resources on high-risk days of the week</li>
+                    <li><strong>Seasonal Planning:</strong> Prepare for seasonal variations in incident frequency</li>
+                    <li><strong>Preventive Measures:</strong> Consider chili fences or early warning systems in frequent locations</li>
+                    <li><strong>Data Collection:</strong> Continue reporting incidents to improve prediction accuracy</li>
                 </ul>
+                
+                {% if historical_count %}
+                <div style="margin-top: 15px; padding: 15px; background: #d4edda; border-radius: 5px;">
+                    <strong>📈 Enhanced Analysis:</strong> Historical data provides better pattern recognition and more accurate risk assessments.
+                </div>
+                {% endif %}
             </div>
             {% else %}
             <div class="message">
                 Continue reporting incidents to unlock predictive insights and recommendations.
+                {% if not current_user.is_authenticated %}
+                <br><a href="/login" style="color: #3498db;">Login</a> to upload historical data for enhanced predictions.
+                {% endif %}
             </div>
             {% endif %}
+        </div>
+
+        <!-- Data Quality Section -->
+        <div class="section" style="background: #fff3cd; border-left: 4px solid #f39c12;">
+            <h2>📊 Data Quality & Improvement</h2>
+            <p>To improve prediction accuracy:</p>
+            <ul style="margin: 15px 0; padding-left: 20px;">
+                <li>Ensure consistent incident reporting with accurate GPS coordinates</li>
+                <li>Include detailed information about elephant numbers and damage estimates</li>
+                <li>Upload historical data if available</li>
+                <li>Report incidents promptly after they occur</li>
+            </ul>
+            <p style="margin-top: 10px; font-size: 14px; color: #856404;">
+                <strong>Current data quality:</strong> 
+                {% if total_incidents >= 20 %}Good
+                {% elif total_incidents >= 10 %}Moderate
+                {% else %}Limited - more data needed
+                {% endif %}
+                ({{ total_incidents }} incidents)
+            </p>
         </div>
     </div>
 
     <script>
-        // Simple chart for day patterns (optional enhancement)
+        // Enhanced visual effects for cards based on risk levels
         document.addEventListener('DOMContentLoaded', function() {
+            // Color code day cards based on percentage
             const dayCards = document.querySelectorAll('.day-card');
             dayCards.forEach(card => {
                 const percentage = card.querySelector('.percentage').textContent;
                 const percentageValue = parseFloat(percentage);
                 
-                // Add visual intensity based on percentage
                 if (percentageValue > 20) {
                     card.style.background = 'linear-gradient(135deg, #ff6b6b, #ff8e8e)';
                     card.style.color = 'white';
@@ -295,6 +535,63 @@
                     card.style.background = 'linear-gradient(135deg, #ffd93d, #ffed4e)';
                 }
             });
+
+            // Color code month cards based on percentage
+            const monthCards = document.querySelectorAll('.month-card');
+            monthCards.forEach(card => {
+                const percentage = card.querySelector('.percentage').textContent;
+                const percentageValue = parseFloat(percentage);
+                
+                if (percentageValue > 15) {
+                    card.style.background = 'linear-gradient(135deg, #ff6b6b, #ff8e8e)';
+                    card.style.color = 'white';
+                } else if (percentageValue > 8) {
+                    card.style.background = 'linear-gradient(135deg, #ffd93d, #ffed4e)';
+                }
+            });
+
+            // Add hover effects to hotspot cards
+            const hotspotCards = document.querySelectorAll('.hotspot-card');
+            hotspotCards.forEach(card => {
+                card.addEventListener('mouseenter', function() {
+                    this.style.transform = 'translateY(-5px)';
+                    this.style.transition = 'transform 0.3s ease';
+                });
+                card.addEventListener('mouseleave', function() {
+                    this.style.transform = 'translateY(0)';
+                });
+            });
+
+            // File input styling
+            const fileInput = document.querySelector('.file-input');
+            if (fileInput) {
+                fileInput.addEventListener('change', function() {
+                    if (this.files.length > 0) {
+                        this.style.borderColor = '#27ae60';
+                        this.style.background = '#f8fff9';
+                    } else {
+                        this.style.borderColor = '#3498db';
+                        this.style.background = 'white';
+                    }
+                });
+            }
+        });
+
+        // Simple file size validation
+        document.addEventListener('DOMContentLoaded', function() {
+            const fileInput = document.querySelector('input[type="file"]');
+            if (fileInput) {
+                fileInput.addEventListener('change', function() {
+                    const file = this.files[0];
+                    if (file) {
+                        const fileSize = file.size / 1024 / 1024; // MB
+                        if (fileSize > 16) {
+                            alert('File size exceeds 16MB limit. Please choose a smaller file.');
+                            this.value = '';
+                        }
+                    }
+                });
+            }
         });
     </script>
 </body>
