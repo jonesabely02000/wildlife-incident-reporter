@@ -594,5 +594,296 @@
             }
         });
     </script>
+        <script>
+        // Enhanced visual effects for cards based on risk levels
+        document.addEventListener('DOMContentLoaded', function() {
+            // Color code day cards based on percentage
+            const dayCards = document.querySelectorAll('.day-card');
+            dayCards.forEach(card => {
+                const percentage = card.querySelector('.percentage').textContent;
+                const percentageValue = parseFloat(percentage);
+                
+                if (percentageValue > 20) {
+                    card.style.background = 'linear-gradient(135deg, #ff6b6b, #ff8e8e)';
+                    card.style.color = 'white';
+                } else if (percentageValue > 10) {
+                    card.style.background = 'linear-gradient(135deg, #ffd93d, #ffed4e)';
+                }
+            });
+
+            // Color code month cards based on percentage
+            const monthCards = document.querySelectorAll('.month-card');
+            monthCards.forEach(card => {
+                const percentage = card.querySelector('.percentage').textContent;
+                const percentageValue = parseFloat(percentage);
+                
+                if (percentageValue > 15) {
+                    card.style.background = 'linear-gradient(135deg, #ff6b6b, #ff8e8e)';
+                    card.style.color = 'white';
+                } else if (percentageValue > 8) {
+                    card.style.background = 'linear-gradient(135deg, #ffd93d, #ffed4e)';
+                }
+            });
+
+            // Add hover effects to hotspot cards
+            const hotspotCards = document.querySelectorAll('.hotspot-card');
+            hotspotCards.forEach(card => {
+                card.addEventListener('mouseenter', function() {
+                    this.style.transform = 'translateY(-5px)';
+                    this.style.transition = 'transform 0.3s ease';
+                    this.style.boxShadow = '0 8px 25px rgba(0,0,0,0.15)';
+                });
+                card.addEventListener('mouseleave', function() {
+                    this.style.transform = 'translateY(0)';
+                    this.style.boxShadow = '0 2px 10px rgba(0,0,0,0.1)';
+                });
+
+                // Add click to expand functionality
+                card.style.cursor = 'pointer';
+                card.addEventListener('click', function() {
+                    this.classList.toggle('expanded');
+                    if (this.classList.contains('expanded')) {
+                        this.style.transform = 'scale(1.02)';
+                        this.style.zIndex = '10';
+                    } else {
+                        this.style.transform = 'scale(1)';
+                        this.style.zIndex = '1';
+                    }
+                });
+            });
+
+            // File input styling
+            const fileInput = document.querySelector('.file-input');
+            if (fileInput) {
+                fileInput.addEventListener('change', function() {
+                    if (this.files.length > 0) {
+                        this.style.borderColor = '#27ae60';
+                        this.style.background = '#f8fff9';
+                    } else {
+                        this.style.borderColor = '#3498db';
+                        this.style.background = 'white';
+                    }
+                });
+            }
+
+            // Add collapsible section functionality
+            const sectionHeaders = document.querySelectorAll('.section h2');
+            sectionHeaders.forEach(header => {
+                header.style.cursor = 'pointer';
+                header.innerHTML = '🔽 ' + header.innerHTML;
+                
+                header.addEventListener('click', function() {
+                    const section = this.parentElement;
+                    const content = section.querySelectorAll(':not(h2)');
+                    
+                    content.forEach(element => {
+                        if (element.style.display === 'none') {
+                            element.style.display = '';
+                            this.innerHTML = this.innerHTML.replace('🔼', '🔽');
+                        } else {
+                            element.style.display = 'none';
+                            this.innerHTML = this.innerHTML.replace('🔽', '🔼');
+                        }
+                    });
+                });
+            });
+
+            // Add loading animation for file upload
+            const uploadForm = document.querySelector('form[enctype="multipart/form-data"]');
+            if (uploadForm) {
+                uploadForm.addEventListener('submit', function() {
+                    const submitBtn = this.querySelector('button[type="submit"]');
+                    if (submitBtn) {
+                        submitBtn.innerHTML = '⏳ Processing...';
+                        submitBtn.disabled = true;
+                    }
+                });
+            }
+
+            // Auto-hide flash messages after 5 seconds
+            const flashMessages = document.querySelectorAll('.flash-message');
+            flashMessages.forEach(message => {
+                setTimeout(() => {
+                    message.style.opacity = '0';
+                    message.style.transition = 'opacity 0.5s ease';
+                    setTimeout(() => message.remove(), 500);
+                }, 5000);
+            });
+
+            // Add smooth scrolling for navigation
+            document.querySelectorAll('nav a').forEach(link => {
+                link.addEventListener('click', function(e) {
+                    if (this.getAttribute('href').startsWith('#')) {
+                        e.preventDefault();
+                        const target = document.querySelector(this.getAttribute('href'));
+                        if (target) {
+                            target.scrollIntoView({ behavior: 'smooth' });
+                        }
+                    }
+                });
+            });
+        });
+
+        // Simple file size validation
+        document.addEventListener('DOMContentLoaded', function() {
+            const fileInput = document.querySelector('input[type="file"]');
+            if (fileInput) {
+                fileInput.addEventListener('change', function() {
+                    const file = this.files[0];
+                    if (file) {
+                        const fileSize = file.size / 1024 / 1024; // MB
+                        if (fileSize > 16) {
+                            alert('File size exceeds 16MB limit. Please choose a smaller file.');
+                            this.value = '';
+                        } else {
+                            // Show file name
+                            const fileNameDisplay = document.createElement('div');
+                            fileNameDisplay.style.marginTop = '10px';
+                            fileNameDisplay.style.padding = '8px';
+                            fileNameDisplay.style.background = '#d4edda';
+                            fileNameDisplay.style.borderRadius = '4px';
+                            fileNameDisplay.style.fontSize = '14px';
+                            fileNameDisplay.innerHTML = `📁 Selected: ${file.name} (${(fileSize).toFixed(2)} MB)`;
+                            
+                            // Remove previous file display
+                            const existingDisplay = this.parentElement.querySelector('.file-display');
+                            if (existingDisplay) {
+                                existingDisplay.remove();
+                            }
+                            
+                            fileNameDisplay.className = 'file-display';
+                            this.parentElement.appendChild(fileNameDisplay);
+                        }
+                    }
+                });
+            }
+        });
+
+        // Add search/filter functionality for hotspots
+        function filterHotspots(searchTerm) {
+            const hotspots = document.querySelectorAll('.hotspot-card');
+            hotspots.forEach(hotspot => {
+                const text = hotspot.textContent.toLowerCase();
+                if (text.includes(searchTerm.toLowerCase())) {
+                    hotspot.style.display = '';
+                } else {
+                    hotspot.style.display = 'none';
+                }
+            });
+        }
+
+        // Add this search box HTML dynamically
+        document.addEventListener('DOMContentLoaded', function() {
+            const hotspotsSection = document.querySelector('.section');
+            if (hotspotsSection && document.querySelector('.hotspot-card')) {
+                const searchBox = document.createElement('div');
+                searchBox.innerHTML = `
+                    <div style="margin: 15px 0; display: flex; gap: 10px; align-items: center;">
+                        <input type="text" id="hotspotSearch" placeholder="🔍 Search hotspots by risk level or location..." 
+                               style="padding: 8px 12px; border: 1px solid #ddd; border-radius: 5px; flex: 1;"
+                               onkeyup="filterHotspots(this.value)">
+                        <button onclick="document.getElementById('hotspotSearch').value = ''; filterHotspots('')" 
+                                style="padding: 8px 12px; background: #95a5a6; color: white; border: none; border-radius: 5px; cursor: pointer;">
+                            Clear
+                        </button>
+                    </div>
+                `;
+                hotspotsSection.querySelector('p').after(searchBox);
+            }
+        });
+
+        // Export predictions data
+        function exportPredictions() {
+            const hotspots = {{ hotspots|tojson }};
+            const dayPatterns = {{ day_patterns|tojson }};
+            
+            const data = {
+                hotspots: hotspots,
+                dayPatterns: dayPatterns,
+                exportedAt: new Date().toISOString(),
+                totalIncidents: {{ total_incidents }}
+            };
+            
+            const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = 'predictions_export.json';
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+        }
+
+        // Add export button
+        document.addEventListener('DOMContentLoaded', function() {
+            const recommendationsSection = document.querySelector('.section');
+            if (recommendationsSection && {{ hotspots|length }} > 0) {
+                const exportBtn = document.createElement('button');
+                exportBtn.innerHTML = '💾 Export Predictions Data';
+                exportBtn.style.background = '#9b59b6';
+                exportBtn.style.color = 'white';
+                exportBtn.style.padding = '10px 15px';
+                exportBtn.style.border = 'none';
+                exportBtn.style.borderRadius = '5px';
+                exportBtn.style.cursor = 'pointer';
+                exportBtn.style.marginTop = '15px';
+                exportBtn.onclick = exportPredictions;
+                
+                recommendationsSection.appendChild(exportBtn);
+            }
+        });
+    </script>
+
+    <!-- Add some CSS for the new interactive elements -->
+    <style>
+        .hotspot-card {
+            transition: all 0.3s ease;
+            position: relative;
+        }
+        
+        .hotspot-card.expanded {
+            transform: scale(1.02);
+            z-index: 10;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+        }
+        
+        .section h2 {
+            transition: color 0.3s ease;
+        }
+        
+        .section h2:hover {
+            color: #2980b9;
+        }
+        
+        .upload-btn, .template-btn {
+            transition: all 0.3s ease;
+        }
+        
+        .upload-btn:hover, .template-btn:hover {
+            transform: translateY(-2px);
+        }
+        
+        .stat-card {
+            transition: transform 0.3s ease;
+        }
+        
+        .stat-card:hover {
+            transform: translateY(-3px);
+        }
+        
+        /* Loading animation */
+        @keyframes pulse {
+            0% { opacity: 1; }
+            50% { opacity: 0.5; }
+            100% { opacity: 1; }
+        }
+        
+        .loading {
+            animation: pulse 1.5s infinite;
+        }
+    </style>
+</body>
+</html>
 </body>
 </html>
