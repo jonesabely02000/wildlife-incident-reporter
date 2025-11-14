@@ -264,7 +264,7 @@
                     {% if user.verified %}
                         <strong style="color: #28a745;">✓ Verified</strong>
                     {% else %}
-                        <a href="{{ url_for('verify_manual') }}" style="color: #dc3545;">❌ Not Verified</a>
+                        <span style="color: #dc3545;">❌ Not Verified</span>
                     {% endif %}
                 {% else %}
                     Welcome to Wildlife Incident Reporter
@@ -298,6 +298,7 @@
                 {% else %}
                     <a href="{{ url_for('login') }}" class="btn">Login</a>
                     <a href="{{ url_for('register') }}" class="btn btn-secondary">Register</a>
+                    <a href="{{ url_for('login_guest') }}" class="btn">Guest Login</a>
                 {% endif %}
             </div>
 
