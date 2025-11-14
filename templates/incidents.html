@@ -79,8 +79,12 @@
             margin: 10px 5px;
             transition: background 0.3s;
         }
-        .export-btn:hover {
+        .export-btn:hover:not(:disabled) {
             background: #219a52;
+        }
+        .export-btn:disabled {
+            background: #95a5a6;
+            cursor: not-allowed;
         }
         .no-data {
             text-align: center;
@@ -139,6 +143,60 @@
             padding: 2px 4px;
             margin: 1px;
         }
+        .user-info {
+            text-align: center;
+            margin: 10px 0;
+            padding: 10px;
+            background: #e8f4f8;
+            border-radius: 5px;
+            font-size: 14px;
+        }
+        .flash-messages {
+            margin-bottom: 20px;
+        }
+        .flash-message {
+            padding: 10px;
+            border-radius: 5px;
+            margin-bottom: 10px;
+            text-align: center;
+        }
+        .flash-success {
+            background: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+        .flash-error {
+            background: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+        .flash-warning {
+            background: #fff3cd;
+            color: #856404;
+            border: 1px solid #ffeaa7;
+        }
+        .flash-info {
+            background: #cce7ff;
+            color: #004085;
+            border: 1px solid #b3d7ff;
+        }
+        .auth-prompt {
+            text-align: center;
+            margin: 10px 0;
+            padding: 15px;
+            background: #fff3cd;
+            border: 1px solid #ffeaa7;
+            border-radius: 5px;
+            color: #856404;
+        }
+        .auth-prompt a {
+            color: #3498db;
+            text-decoration: none;
+            font-weight: bold;
+        }
+        .auth-prompt a:hover {
+            text-decoration: underline;
+        }
     </style>
 </head>
 <body>
@@ -148,7 +206,40 @@
         <nav>
             <a href="/">🏠 Home</a>
             <a href="{{ url_for('report_incident') }}">📝 Report New Incident</a>
+            <a href="{{ url_for('predictions') }}">🔮 Predictions & Hotspots</a>
+            {% if current_user.is_authenticated %}
+                <a href="/logout">🚪 Logout</a>
+            {% else %}
+                <a href="/login">🔐 Login</a>
+            {% endif %}
         </nav>
+
+        <!-- Flash Messages -->
+        <div class="flash-messages">
+            {% with messages = get_flashed_messages(with_categories=true) %}
+                {% if messages %}
+                    {% for category, message in messages %}
+                        <div class="flash-message flash-{{ category }}">{{ message }}</div>
+                    {% endfor %}
+                {% endif %}
+            {% endwith %}
+        </div>
+
+        <!-- User Info -->
+        {% if current_user.is_authenticated %}
+        <div class="user-info">
+            👋 Welcome, {{ current_user.email }}!
+            {% if current_user.verified %}
+                <span style="color: #27ae60;">✓ Verified</span> - You can export data
+            {% else %}
+                <span style="color: #e74c3c;">⚠ Not Verified</span> - <a href="#" style="color: #3498db;">Verify email</a> to export data
+            {% endif %}
+        </div>
+        {% else %}
+        <div class="auth-prompt">
+            🔐 <a href="/login">Login</a> or <a href="/register">Register</a> to unlock data export and advanced features
+        </div>
+        {% endif %}
 
         {% if incidents %}
         <div class="stats">
@@ -175,10 +266,32 @@
         </div>
         {% endif %}
 
+        <!-- Export Button with Authentication -->
         <div class="actions">
+            {% if current_user.is_authenticated and current_user.verified %}
             <button class="export-btn" onclick="window.location='/export'">
                 📄 Export to CSV
             </button>
+            {% else %}
+            <button class="export-btn" disabled 
+                    title="{% if not current_user.is_authenticated %}Login required{% else %}Email verification required{% endif %}">
+                📄 Export to CSV 
+                {% if not current_user.is_authenticated %}
+                (Login Required)
+                {% else %}
+                (Verify Email)
+                {% endif %}
+            </button>
+            <div style="text-align: center; margin: 10px 0; color: #666; font-size: 14px;">
+                {% if not current_user.is_authenticated %}
+                <a href="/login" style="color: #3498db; text-decoration: none; font-weight: bold;">Login</a> or 
+                <a href="/register" style="color: #3498db; text-decoration: none; font-weight: bold;">Register</a> to export data
+                {% else %}
+                Please verify your email to enable data export. 
+                <a href="#" style="color: #3498db; text-decoration: none; font-weight: bold;">Resend verification email</a>
+                {% endif %}
+            </div>
+            {% endif %}
         </div>
 
         {% if incidents %}
@@ -247,10 +360,23 @@
             </tbody>
         </table>
 
+        <!-- Export Button at Bottom -->
         <div class="actions">
+            {% if current_user.is_authenticated and current_user.verified %}
             <button class="export-btn" onclick="window.location='/export'">
                 📄 Export to CSV
             </button>
+            {% else %}
+            <button class="export-btn" disabled 
+                    title="{% if not current_user.is_authenticated %}Login required{% else %}Email verification required{% endif %}">
+                📄 Export to CSV 
+                {% if not current_user.is_authenticated %}
+                (Login Required)
+                {% else %}
+                (Verify Email)
+                {% endif %}
+            </button>
+            {% endif %}
         </div>
 
         {% else %}
@@ -264,132 +390,132 @@
         </div>
         {% endif %}
     </div>
+
     <script>
-// Show pending offline incidents
-async function loadPendingIncidents() {
-    if ('serviceWorker' in navigator && navigator.serviceWorker.controller) {
-        const offlineManager = {
-            async getPendingIncidents() {
-                if (!('indexedDB' in window)) {
-                    return JSON.parse(localStorage.getItem('pendingIncidents') || '[]');
+    // Show pending offline incidents
+    async function loadPendingIncidents() {
+        if ('serviceWorker' in navigator && navigator.serviceWorker.controller) {
+            const offlineManager = {
+                async getPendingIncidents() {
+                    if (!('indexedDB' in window)) {
+                        return JSON.parse(localStorage.getItem('pendingIncidents') || '[]');
+                    }
+
+                    return new Promise((resolve) => {
+                        const request = indexedDB.open('WildlifeIncidentsDB', 1);
+                        request.onsuccess = (event) => {
+                            const db = event.target.result;
+                            const transaction = db.transaction(['pendingIncidents'], 'readonly');
+                            const store = transaction.objectStore('pendingIncidents');
+                            const getAllRequest = store.getAll();
+                            getAllRequest.onsuccess = () => resolve(getAllRequest.result);
+                        };
+                        request.onerror = () => resolve([]);
+                    });
                 }
+            };
 
-                return new Promise((resolve) => {
-                    const request = indexedDB.open('WildlifeIncidentsDB', 1);
-                    request.onsuccess = (event) => {
-                        const db = event.target.result;
-                        const transaction = db.transaction(['pendingIncidents'], 'readonly');
-                        const store = transaction.objectStore('pendingIncidents');
-                        const getAllRequest = store.getAll();
-                        getAllRequest.onsuccess = () => resolve(getAllRequest.result);
-                    };
-                    request.onerror = () => resolve([]);
-                });
-            }
-        };
-
-        const pending = await offlineManager.getPendingIncidents();
-        
-        if (pending.length > 0) {
-            // Create pending incidents section
-            const pendingSection = document.createElement('div');
-            pendingSection.innerHTML = `
-                <div style="background: #fff3cd; border: 1px solid #ffeaa7; padding: 15px; margin: 20px 0; border-radius: 5px;">
-                    <h3>📱 Pending Offline Incidents (${pending.length})</h3>
-                    <p><strong>Note:</strong> These incidents were recorded offline and will sync automatically when connection returns.</p>
-                    <button onclick="syncPendingIncidents()" style="background: #f39c12; color: white; border: none; padding: 10px 15px; border-radius: 4px; cursor: pointer;">
-                        🔄 Sync Now
-                    </button>
-                </div>
-            `;
+            const pending = await offlineManager.getPendingIncidents();
             
-            const table = document.querySelector('table');
-            if (table) {
-                table.parentNode.insertBefore(pendingSection, table);
+            if (pending.length > 0) {
+                // Create pending incidents section
+                const pendingSection = document.createElement('div');
+                pendingSection.innerHTML = `
+                    <div style="background: #fff3cd; border: 1px solid #ffeaa7; padding: 15px; margin: 20px 0; border-radius: 5px;">
+                        <h3>📱 Pending Offline Incidents (${pending.length})</h3>
+                        <p><strong>Note:</strong> These incidents were recorded offline and will sync automatically when connection returns.</p>
+                        <button onclick="syncPendingIncidents()" style="background: #f39c12; color: white; border: none; padding: 10px 15px; border-radius: 4px; cursor: pointer;">
+                            🔄 Sync Now
+                        </button>
+                    </div>
+                `;
+                
+                const table = document.querySelector('table');
+                if (table) {
+                    table.parentNode.insertBefore(pendingSection, table);
+                }
             }
         }
     }
-}
 
-// Manual sync function
-async function syncPendingIncidents() {
-    try {
-        const response = await fetch('/api/sync-pending', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' }
+    // Manual sync function
+    async function syncPendingIncidents() {
+        try {
+            const response = await fetch('/api/sync-pending', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' }
+            });
+            
+            if (response.ok) {
+                alert('Pending incidents synced successfully!');
+                window.location.reload();
+            }
+        } catch (error) {
+            alert('Sync failed. Please check your connection.');
+        }
+    }
+
+    // Load pending incidents when page loads
+    document.addEventListener('DOMContentLoaded', loadPendingIncidents);
+    </script>
+
+    <script>
+    // Pre-cache all important pages when online
+    if ('serviceWorker' in navigator && navigator.serviceWorker.controller) {
+        // Tell service worker to cache additional pages
+        navigator.serviceWorker.controller.postMessage({
+            type: 'CACHE_URLS',
+            urls: ['/report', '/incidents', '/export', '/offline', '/predictions']
         });
-        
-        if (response.ok) {
-            alert('Pending incidents synced successfully!');
-            window.location.reload();
-        }
-    } catch (error) {
-        alert('Sync failed. Please check your connection.');
     }
-}
 
-// Load pending incidents when page loads
-document.addEventListener('DOMContentLoaded', loadPendingIncidents);
-</script>
-<script>
-// Pre-cache all important pages when online
-if ('serviceWorker' in navigator && navigator.serviceWorker.controller) {
-    // Tell service worker to cache additional pages
-    navigator.serviceWorker.controller.postMessage({
-        type: 'CACHE_URLS',
-        urls: ['/report', '/incidents', '/export', '/offline']
+    // Enhanced offline detection
+    function updateOnlineStatus() {
+        if (!navigator.onLine) {
+            // Add offline indicator
+            if (!document.querySelector('.offline-indicator')) {
+                const indicator = document.createElement('div');
+                indicator.className = 'offline-indicator';
+                indicator.style.cssText = `
+                    position: fixed;
+                    top: 10px;
+                    right: 10px;
+                    background: #e74c3c;
+                    color: white;
+                    padding: 8px 15px;
+                    border-radius: 20px;
+                    font-size: 12px;
+                    font-weight: bold;
+                    z-index: 10000;
+                    box-shadow: 0 2px 10px rgba(0,0,0,0.3);
+                `;
+                indicator.innerHTML = '🔴 Offline';
+                document.body.appendChild(indicator);
+            }
+        } else {
+            // Remove offline indicator
+            const indicator = document.querySelector('.offline-indicator');
+            if (indicator) {
+                indicator.remove();
+            }
+        }
+    }
+
+    // Set up online/offline listeners
+    window.addEventListener('online', updateOnlineStatus);
+    window.addEventListener('offline', updateOnlineStatus);
+    updateOnlineStatus(); // Check initial status
+
+    // Enhanced link handling for offline
+    document.addEventListener('click', function(e) {
+        if (e.target.tagName === 'A' && !navigator.onLine) {
+            const href = e.target.getAttribute('href');
+            if (href && href.startsWith('/') && !href.startsWith('//')) {
+                // For internal links, let them proceed - service worker will handle
+                console.log('Offline navigation attempt:', href);
+            }
+        }
     });
-}
-
-// Enhanced offline detection
-function updateOnlineStatus() {
-    if (!navigator.onLine) {
-        // Add offline indicator
-        if (!document.querySelector('.offline-indicator')) {
-            const indicator = document.createElement('div');
-            indicator.className = 'offline-indicator';
-            indicator.style.cssText = `
-                position: fixed;
-                top: 10px;
-                right: 10px;
-                background: #e74c3c;
-                color: white;
-                padding: 8px 15px;
-                border-radius: 20px;
-                font-size: 12px;
-                font-weight: bold;
-                z-index: 10000;
-                box-shadow: 0 2px 10px rgba(0,0,0,0.3);
-            `;
-            indicator.innerHTML = '🔴 Offline';
-            document.body.appendChild(indicator);
-        }
-    } else {
-        // Remove offline indicator
-        const indicator = document.querySelector('.offline-indicator');
-        if (indicator) {
-            indicator.remove();
-        }
-    }
-}
-
-// Set up online/offline listeners
-window.addEventListener('online', updateOnlineStatus);
-window.addEventListener('offline', updateOnlineStatus);
-updateOnlineStatus(); // Check initial status
-
-// Enhanced link handling for offline
-document.addEventListener('click', function(e) {
-    if (e.target.tagName === 'A' && !navigator.onLine) {
-        const href = e.target.getAttribute('href');
-        if (href && href.startsWith('/') && !href.startsWith('//')) {
-            // For internal links, let them proceed - service worker will handle
-            console.log('Offline navigation attempt:', href);
-        }
-    }
-});
-</script>
+    </script>
 </body>
 </html>
-
-
