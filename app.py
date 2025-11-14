@@ -1,4 +1,4 @@
-from flask import Flask, render_template, request, jsonify, redirect, url_for, flash, session
+from flask import Flask, render_template, request, jsonify, redirect, url_for, flash, session, Response
 from flask_sqlalchemy import SQLAlchemy
 from datetime import datetime, timedelta
 import os
@@ -100,7 +100,8 @@ def home():
 @login_required
 def view_incidents():
     user = get_current_user()
-    return render_template('incidents.html', user=user)
+    incidents = Incident.query.filter_by(reported_by=user.email).all()
+    return render_template('incidents.html', user=user, incidents=incidents)
 
 @app.route('/report-incident')
 @login_required
@@ -253,7 +254,59 @@ def debug_session():
     
     return jsonify(debug_info)
 
-# API Routes
+# API Routes for Incidents
+@app.route('/api/incidents', methods=['GET'])
+@login_required
+def get_incidents():
+    user = get_current_user()
+    incidents = Incident.query.filter_by(reported_by=user.email).all()
+    
+    incidents_data = []
+    for incident in incidents:
+        incidents_data.append({
+            'id': incident.id,
+            'date': incident.date.isoformat(),
+            'latitude': incident.latitude,
+            'longitude': incident.longitude,
+            'species': incident.species,
+            'incident_type': incident.incident_type,
+            'severity': incident.severity,
+            'reported_by': incident.reported_by,
+            'created_at': incident.created_at.isoformat()
+        })
+    
+    return jsonify({'incidents': incidents_data})
+
+@app.route('/api/report-incident', methods=['POST'])
+@login_required
+def api_report_incident():
+    user = get_current_user()
+    
+    try:
+        data = request.get_json()
+        
+        incident = Incident(
+            date=datetime.fromisoformat(data['date']),
+            latitude=float(data['latitude']),
+            longitude=float(data['longitude']),
+            species=data['species'],
+            incident_type=data['incident_type'],
+            severity=data['severity'],
+            reported_by=user.email
+        )
+        
+        db.session.add(incident)
+        db.session.commit()
+        
+        return jsonify({
+            'message': 'Incident reported successfully',
+            'incident_id': incident.id
+        }), 201
+        
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'error': f'Failed to report incident: {str(e)}'}), 500
+
 @app.route('/api/import-incidents', methods=['POST'])
 @login_required
 def import_incidents():
@@ -361,6 +414,26 @@ def get_statistics():
         'high_risk_areas': min(5, total_incidents),
         'data_coverage': min(100, total_incidents * 10)
     })
+
+# Export route
+@app.route('/export')
+@login_required
+def export_incidents():
+    user = get_current_user()
+    incidents = Incident.query.filter_by(reported_by=user.email).all()
+    
+    output = []
+    output.append('ID,Date,Latitude,Longitude,Species,IncidentType,Severity,ReportedBy')
+    
+    for incident in incidents:
+        output.append(f'{incident.id},{incident.date},{incident.latitude},{incident.longitude},{incident.species},{incident.incident_type},{incident.severity},{incident.reported_by}')
+    
+    response = '\n'.join(output)
+    return Response(
+        response,
+        mimetype="text/csv",
+        headers={"Content-disposition": "attachment; filename=incidents.csv"}
+    )
 
 # Test route to create sample data
 @app.route('/test-data')
