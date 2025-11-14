@@ -1,4 +1,4 @@
-from flask import Flask, render_template, request, jsonify, session, redirect, url_for, flash
+from flask import Flask, render_template, request, jsonify, session, redirect, url_for, flash, Response
 from flask_sqlalchemy import SQLAlchemy
 from flask_login import LoginManager, UserMixin, login_user, logout_user, login_required, current_user
 from werkzeug.security import generate_password_hash, check_password_hash
@@ -6,6 +6,8 @@ from datetime import datetime, timedelta
 import os
 import json
 import math
+import csv
+from io import StringIO
 from sqlalchemy import func
 
 app = Flask(__name__)
@@ -137,6 +139,95 @@ def verify_manual():
     return redirect(url_for('home'))
 
 # API Routes
+@app.route('/api/incidents')
+@login_required
+def get_incidents():
+    """API endpoint to get incidents data"""
+    try:
+        incidents = Incident.query.filter_by(reported_by=current_user.email).all()
+        incidents_data = []
+        
+        for incident in incidents:
+            incidents_data.append({
+                'id': incident.id,
+                'date': incident.date.isoformat(),
+                'latitude': incident.latitude,
+                'longitude': incident.longitude,
+                'species': incident.species,
+                'incident_type': incident.incident_type,
+                'severity': incident.severity,
+                'distance_from_village_km': incident.distance_from_village_km,
+                'reported_by': incident.reported_by
+            })
+        
+        return jsonify(incidents_data)
+    
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/export-incidents')
+@login_required
+def export_incidents():
+    """Export incidents as CSV"""
+    try:
+        if not current_user.verified:
+            return jsonify({'error': 'Email verification required for data export'}), 403
+        
+        incidents = Incident.query.filter_by(reported_by=current_user.email).all()
+        
+        output = StringIO()
+        writer = csv.writer(output)
+        writer.writerow(['Date', 'Latitude', 'Longitude', 'Species', 'IncidentType', 'Severity', 'DistanceFromVillage_km'])
+        
+        for incident in incidents:
+            writer.writerow([
+                incident.date.strftime('%Y-%m-%d %H:%M:%S'),
+                incident.latitude,
+                incident.longitude,
+                incident.species,
+                incident.incident_type,
+                incident.severity,
+                incident.distance_from_village_km
+            ])
+        
+        response = Response(
+            output.getvalue(),
+            mimetype='text/csv',
+            headers={'Content-disposition': 'attachment; filename=incidents_export.csv'}
+        )
+        
+        return response
+    
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
+
+@app.route('/api/report-incident', methods=['POST'])
+@login_required
+def report_incident_api():
+    """API endpoint to report new incidents"""
+    try:
+        data = request.get_json()
+        
+        incident = Incident(
+            date=datetime.strptime(data.get('date'), '%Y-%m-%d'),
+            latitude=float(data.get('latitude')),
+            longitude=float(data.get('longitude')),
+            species=data.get('species'),
+            incident_type=data.get('incident_type'),
+            severity=data.get('severity'),
+            distance_from_village_km=float(data.get('distance_from_village_km', 0)),
+            reported_by=current_user.email
+        )
+        
+        db.session.add(incident)
+        db.session.commit()
+        
+        return jsonify({'message': 'Incident reported successfully', 'id': incident.id})
+    
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'error': str(e)}), 500
+
 @app.route('/api/import-incidents', methods=['POST'])
 @login_required
 def import_incidents():
@@ -150,14 +241,11 @@ def import_incidents():
 
         # For Render.com deployment, we'll process CSV data directly
         if file.filename.lower().endswith('.csv'):
-            import csv
-            from io import TextIOWrapper
-            
             imported_count = 0
             errors = []
             
             # Read CSV file
-            stream = TextIOWrapper(file.stream, encoding='utf-8')
+            stream = StringIO(file.stream.read().decode('UTF-8'), newline=None)
             csv_reader = csv.DictReader(stream)
             
             for row_num, row in enumerate(csv_reader, start=2):  # Start at 2 for header
