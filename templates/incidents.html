@@ -6,8 +6,8 @@
         body {
             font-family: Arial, sans-serif;
             margin: 20px;
-            background-image: url('/static/wildlife_bg.jpg');
-            background-size: cover;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
             color: #333;
         }
         .container {
@@ -61,12 +61,6 @@
         }
         tr:hover {
             background: #e8f4f8;
-        }
-        img { 
-            max-width: 80px; 
-            max-height: 80px; 
-            border-radius: 4px;
-            border: 1px solid #ddd;
         }
         .export-btn {
             background: #27ae60;
@@ -136,13 +130,6 @@
         .success-badge { background: #d4edda; color: #155724; }
         .warning-badge { background: #fff3cd; color: #856404; }
         .info-badge { background: #cce7ff; color: #004085; }
-        .response-badge { 
-            background: #e9ecef; 
-            color: #495057; 
-            font-size: 9px;
-            padding: 2px 4px;
-            margin: 1px;
-        }
         .user-info {
             text-align: center;
             margin: 10px 0;
@@ -207,7 +194,7 @@
             <a href="/">🏠 Home</a>
             <a href="{{ url_for('report_incident') }}">📝 Report New Incident</a>
             <a href="{{ url_for('predictions') }}">🔮 Predictions & Hotspots</a>
-            {% if current_user.is_authenticated %}
+            {% if user and user.is_authenticated %}
                 <a href="/logout">🚪 Logout</a>
             {% else %}
                 <a href="/login">🔐 Login</a>
@@ -226,13 +213,13 @@
         </div>
 
         <!-- User Info -->
-        {% if current_user.is_authenticated %}
+        {% if user and user.is_authenticated %}
         <div class="user-info">
-            👋 Welcome, {{ current_user.email }}!
-            {% if current_user.verified %}
+            👋 Welcome, {{ user.email }}!
+            {% if user.verified %}
                 <span style="color: #27ae60;">✓ Verified</span> - You can export data
             {% else %}
-                <span style="color: #e74c3c;">⚠ Not Verified</span> - <a href="#" style="color: #3498db;">Verify email</a> to export data
+                <span style="color: #e74c3c;">⚠ Not Verified</span>
             {% endif %}
         </div>
         {% else %}
@@ -249,46 +236,44 @@
                 <div class="stat-label">Total Incidents</div>
             </div>
             <div class="stat-item">
-                <div class="stat-value">{{ incidents|sum(attribute='elephants_observed') }}</div>
-                <div class="stat-label">Total Elephants</div>
-            </div>
-            <div class="stat-item">
-                <div class="stat-value">Tsh {{ "{:,.0f}".format(incidents|sum(attribute='estimated_loss')) }}</div>
-                <div class="stat-label">Total Loss</div>
+                <div class="stat-value">
+                    {% set high_severity = incidents|selectattr('severity', 'equalto', 'High')|list %}
+                    {{ high_severity|length }}
+                </div>
+                <div class="stat-label">High Severity</div>
             </div>
             <div class="stat-item">
                 <div class="stat-value">
-                    {% set injury_count = incidents|selectattr('injuries_or_deaths', 'ne', 'No one injured')|list|length %}
-                    {{ injury_count }}
+                    {% set unique_species = incidents|map(attribute='species')|unique|list %}
+                    {{ unique_species|length }}
                 </div>
-                <div class="stat-label">Injury Cases</div>
+                <div class="stat-label">Species Types</div>
             </div>
         </div>
         {% endif %}
 
         <!-- Export Button with Authentication -->
         <div class="actions">
-            {% if current_user.is_authenticated and current_user.verified %}
+            {% if user and user.is_authenticated and user.verified %}
             <button class="export-btn" onclick="window.location='/export'">
                 📄 Export to CSV
             </button>
             {% else %}
             <button class="export-btn" disabled 
-                    title="{% if not current_user.is_authenticated %}Login required{% else %}Email verification required{% endif %}">
+                    title="{% if not user.is_authenticated %}Login required{% else %}Email verification required{% endif %}">
                 📄 Export to CSV 
-                {% if not current_user.is_authenticated %}
+                {% if not user.is_authenticated %}
                 (Login Required)
                 {% else %}
                 (Verify Email)
                 {% endif %}
             </button>
             <div style="text-align: center; margin: 10px 0; color: #666; font-size: 14px;">
-                {% if not current_user.is_authenticated %}
+                {% if not user.is_authenticated %}
                 <a href="/login" style="color: #3498db; text-decoration: none; font-weight: bold;">Login</a> or 
                 <a href="/register" style="color: #3498db; text-decoration: none; font-weight: bold;">Register</a> to export data
                 {% else %}
                 Please verify your email to enable data export. 
-                <a href="#" style="color: #3498db; text-decoration: none; font-weight: bold;">Resend verification email</a>
                 {% endif %}
             </div>
             {% endif %}
@@ -299,25 +284,21 @@
             <thead>
                 <tr>
                     <th>ID</th>
-                    <th>CRRT Member</th>
-                    <th>Incident Date/Time</th>
+                    <th>Date</th>
                     <th>Location</th>
-                    <th>Type</th>
-                    <th>Elephants</th>
-                    <th>Response Methods</th>
-                    <th>Outcome</th>
-                    <th>Injuries</th>
-                    <th>Loss (Tsh)</th>
+                    <th>Species</th>
+                    <th>Incident Type</th>
+                    <th>Severity</th>
+                    <th>Reported By</th>
                 </tr>
             </thead>
             <tbody>
                 {% for incident in incidents %}
                 <tr>
                     <td><strong>#{{ incident.id }}</strong></td>
-                    <td>{{ incident.crrt_member_name }}</td>
                     <td>
-                        {{ incident.incident_date }}<br>
-                        <small>{{ incident.incident_time }}</small>
+                        {{ incident.date.strftime('%Y-%m-%d %H:%M') }}<br>
+                        <small>{{ incident.created_at.strftime('%Y-%m-%d') }}</small>
                     </td>
                     <td>
                         <small>
@@ -325,35 +306,21 @@
                         </small>
                     </td>
                     <td>
+                        <strong>{{ incident.species }}</strong>
+                    </td>
+                    <td>
                         <span class="badge info-badge">{{ incident.incident_type }}</span>
                     </td>
                     <td>
-                        <strong>{{ incident.elephants_observed }} 🐘</strong>
-                    </td>
-                    <td>
-                        {% if incident.response_noise %}<span class="response-badge" title="Noise (shouting, banging)">🔊</span>{% endif %}
-                        {% if incident.response_fire %}<span class="response-badge" title="Fire or torch use">🔥</span>{% endif %}
-                        {% if incident.response_chili %}<span class="response-badge" title="Chili smoke or chili bombs">🌶️</span>{% endif %}
-                        {% if incident.response_flashlight %}<span class="response-badge" title="Flashlight or spotlight">💡</span>{% endif %}
-                        {% if incident.response_other %}<span class="response-badge" title="Other method">📌</span>{% endif %}
-                    </td>
-                    <td>
                         <span class="badge 
-                            {% if 'prevented' in incident.response_outcome %}success-badge
-                            {% elif 'significant' in incident.response_outcome %}danger-badge
-                            {% else %}warning-badge{% endif %}">
-                            {{ incident.response_outcome }}
+                            {% if incident.severity == 'High' %}danger-badge
+                            {% elif incident.severity == 'Medium' %}warning-badge
+                            {% else %}success-badge{% endif %}">
+                            {{ incident.severity }}
                         </span>
                     </td>
                     <td>
-                        <span class="badge 
-                            {% if 'No one' in incident.injuries_or_deaths %}success-badge
-                            {% else %}danger-badge{% endif %}">
-                            {{ incident.injuries_or_deaths }}
-                        </span>
-                    </td>
-                    <td>
-                        <strong>Tsh {{ "{:,.0f}".format(incident.estimated_loss) }}</strong>
+                        {{ incident.reported_by }}
                     </td>
                 </tr>
                 {% endfor %}
@@ -362,15 +329,15 @@
 
         <!-- Export Button at Bottom -->
         <div class="actions">
-            {% if current_user.is_authenticated and current_user.verified %}
+            {% if user and user.is_authenticated and user.verified %}
             <button class="export-btn" onclick="window.location='/export'">
                 📄 Export to CSV
             </button>
             {% else %}
             <button class="export-btn" disabled 
-                    title="{% if not current_user.is_authenticated %}Login required{% else %}Email verification required{% endif %}">
+                    title="{% if not user.is_authenticated %}Login required{% else %}Email verification required{% endif %}">
                 📄 Export to CSV 
-                {% if not current_user.is_authenticated %}
+                {% if not user.is_authenticated %}
                 (Login Required)
                 {% else %}
                 (Verify Email)
@@ -392,83 +359,6 @@
     </div>
 
     <script>
-    // Show pending offline incidents
-    async function loadPendingIncidents() {
-        if ('serviceWorker' in navigator && navigator.serviceWorker.controller) {
-            const offlineManager = {
-                async getPendingIncidents() {
-                    if (!('indexedDB' in window)) {
-                        return JSON.parse(localStorage.getItem('pendingIncidents') || '[]');
-                    }
-
-                    return new Promise((resolve) => {
-                        const request = indexedDB.open('WildlifeIncidentsDB', 1);
-                        request.onsuccess = (event) => {
-                            const db = event.target.result;
-                            const transaction = db.transaction(['pendingIncidents'], 'readonly');
-                            const store = transaction.objectStore('pendingIncidents');
-                            const getAllRequest = store.getAll();
-                            getAllRequest.onsuccess = () => resolve(getAllRequest.result);
-                        };
-                        request.onerror = () => resolve([]);
-                    });
-                }
-            };
-
-            const pending = await offlineManager.getPendingIncidents();
-            
-            if (pending.length > 0) {
-                // Create pending incidents section
-                const pendingSection = document.createElement('div');
-                pendingSection.innerHTML = `
-                    <div style="background: #fff3cd; border: 1px solid #ffeaa7; padding: 15px; margin: 20px 0; border-radius: 5px;">
-                        <h3>📱 Pending Offline Incidents (${pending.length})</h3>
-                        <p><strong>Note:</strong> These incidents were recorded offline and will sync automatically when connection returns.</p>
-                        <button onclick="syncPendingIncidents()" style="background: #f39c12; color: white; border: none; padding: 10px 15px; border-radius: 4px; cursor: pointer;">
-                            🔄 Sync Now
-                        </button>
-                    </div>
-                `;
-                
-                const table = document.querySelector('table');
-                if (table) {
-                    table.parentNode.insertBefore(pendingSection, table);
-                }
-            }
-        }
-    }
-
-    // Manual sync function
-    async function syncPendingIncidents() {
-        try {
-            const response = await fetch('/api/sync-pending', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' }
-            });
-            
-            if (response.ok) {
-                alert('Pending incidents synced successfully!');
-                window.location.reload();
-            }
-        } catch (error) {
-            alert('Sync failed. Please check your connection.');
-        }
-    }
-
-    // Load pending incidents when page loads
-    document.addEventListener('DOMContentLoaded', loadPendingIncidents);
-    </script>
-
-    <script>
-    // Pre-cache all important pages when online
-    if ('serviceWorker' in navigator && navigator.serviceWorker.controller) {
-        // Tell service worker to cache additional pages
-        navigator.serviceWorker.controller.postMessage({
-            type: 'CACHE_URLS',
-            urls: ['/report', '/incidents', '/export', '/offline', '/predictions']
-        });
-    }
-
     // Enhanced offline detection
     function updateOnlineStatus() {
         if (!navigator.onLine) {
@@ -505,17 +395,6 @@
     window.addEventListener('online', updateOnlineStatus);
     window.addEventListener('offline', updateOnlineStatus);
     updateOnlineStatus(); // Check initial status
-
-    // Enhanced link handling for offline
-    document.addEventListener('click', function(e) {
-        if (e.target.tagName === 'A' && !navigator.onLine) {
-            const href = e.target.getAttribute('href');
-            if (href && href.startsWith('/') && !href.startsWith('//')) {
-                // For internal links, let them proceed - service worker will handle
-                console.log('Offline navigation attempt:', href);
-            }
-        }
-    });
     </script>
 </body>
 </html>

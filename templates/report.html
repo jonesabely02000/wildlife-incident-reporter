@@ -1,713 +1,567 @@
 <!DOCTYPE html>
-<html lang="en">
+<html>
 <head>
-<meta charset="UTF-8">
-<title>Report Wildlife Incident</title>
-<style>
-    body { 
-        font-family: Arial, sans-serif; 
-        margin: 20px; 
-        background-image: url('/static/wildlife_bg.jpg'); 
-        background-size: cover; 
-        background-attachment: fixed; 
-        color: #333;
-    }
-    .container {
-        background: rgba(255,255,255,0.95);
-        padding: 30px;
-        border-radius: 15px;
-        max-width: 1200px;
-        margin: 0 auto;
-        box-shadow: 0 0 20px rgba(0,0,0,0.3);
-    }
-    h1 {
-        text-align: center;
-        color: #2c3e50;
-        margin-bottom: 30px;
-    }
-    label { 
-        display: block; 
-        margin-top: 15px; 
-        font-weight: bold;
-        color: #2c3e50;
-    }
-    input, select, textarea { 
-        width: 100%; 
-        max-width: 300px;
-        padding: 8px;
-        margin-top: 5px;
-        border: 1px solid #ddd;
-        border-radius: 4px;
-        box-sizing: border-box;
-    }
-    #map { 
-        width: 100%; 
-        height: 400px; 
-        border: 2px solid #3498db; 
-        border-radius: 8px;
-    }
-    .form-container { 
-        display: flex; 
-        gap: 40px;
-        align-items: flex-start; 
-    }
-    .form-fields { 
-        flex: 1; 
-        min-width: 400px;
-    }
-    .map-container { 
-        flex: 1; 
-        min-width: 400px;
-    }
-    .map-container h3 {
-        color: #2c3e50;
-        margin-bottom: 10px;
-    }
-    button { 
-        margin: 10px 5px 10px 0; 
-        padding: 10px 15px; 
-        background: #3498db;
-        color: white;
-        border: none;
-        border-radius: 4px;
-        cursor: pointer;
-        transition: background 0.3s;
-    }
-    button:hover {
-        background: #2980b9;
-    }
-    input[type="submit"] {
-        background: #27ae60;
-        color: white;
-        padding: 12px 30px;
-        border: none;
-        border-radius: 4px;
-        cursor: pointer;
-        font-size: 16px;
-        margin-top: 20px;
-        width: auto;
-    }
-    input[type="submit"]:hover {
-        background: #219a52;
-    }
-    .form-section {
-        background: #f8f9fa;
-        padding: 20px;
-        border-radius: 8px;
-        margin-bottom: 20px;
-        border-left: 4px solid #3498db;
-    }
-    .form-section h3 {
-        margin-top: 0;
-        color: #2c3e50;
-        border-bottom: 1px solid #ddd;
-        padding-bottom: 10px;
-    }
-    .checkbox-group {
-        margin: 10px 0;
-    }
-    .checkbox-group label {
-        display: inline-block;
-        margin-left: 5px;
-        font-weight: normal;
-    }
-    .gps-fields {
-        display: grid;
-        grid-template-columns: 1fr 1fr;
-        gap: 10px;
-    }
-    .gps-fields input {
-        max-width: 100%;
-    }
-</style>
-<link rel="stylesheet" href="https://unpkg.com/leaflet/dist/leaflet.css"/>
-<script src="https://unpkg.com/leaflet/dist/leaflet.js"></script>
+    <title>Report Wildlife Incident</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 20px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            color: #333;
+        }
+        .container {
+            background: rgba(255,255,255,0.95);
+            padding: 30px;
+            border-radius: 15px;
+            box-shadow: 0 0 20px rgba(0,0,0,0.3);
+            max-width: 800px;
+            margin: 0 auto;
+        }
+        h1 {
+            text-align: center;
+            color: #2c3e50;
+            margin-bottom: 20px;
+        }
+        nav {
+            text-align: center;
+            margin: 20px 0;
+        }
+        nav a {
+            margin: 0 10px;
+            padding: 10px 20px;
+            font-weight: bold;
+            color: white;
+            text-decoration: none;
+            background: #3498db;
+            border-radius: 5px;
+            transition: background 0.3s;
+        }
+        nav a:hover {
+            background: #2980b9;
+        }
+        .form-group {
+            margin-bottom: 20px;
+        }
+        label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: bold;
+            color: #2c3e50;
+        }
+        input, select, textarea {
+            width: 100%;
+            padding: 10px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            font-size: 14px;
+        }
+        .btn {
+            background: #27ae60;
+            color: white;
+            padding: 12px 25px;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 16px;
+            margin: 10px 5px;
+            transition: background 0.3s;
+        }
+        .btn:hover {
+            background: #219a52;
+        }
+        .btn-secondary {
+            background: #95a5a6;
+        }
+        .btn-secondary:hover {
+            background: #7f8c8d;
+        }
+        .location-info {
+            background: #e8f4f8;
+            padding: 15px;
+            border-radius: 5px;
+            margin: 15px 0;
+            border-left: 4px solid #3498db;
+        }
+        .user-info {
+            text-align: center;
+            margin: 10px 0;
+            padding: 10px;
+            background: #e8f4f8;
+            border-radius: 5px;
+            font-size: 14px;
+        }
+        .flash-messages {
+            margin-bottom: 20px;
+        }
+        .flash-message {
+            padding: 10px;
+            border-radius: 5px;
+            margin-bottom: 10px;
+            text-align: center;
+        }
+        .flash-success {
+            background: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+        .flash-error {
+            background: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+        .coordinates {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 10px;
+        }
+        .offline-indicator {
+            position: fixed;
+            top: 10px;
+            right: 10px;
+            background: #e74c3c;
+            color: white;
+            padding: 8px 15px;
+            border-radius: 20px;
+            font-size: 12px;
+            font-weight: bold;
+            z-index: 10000;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.3);
+        }
+        .import-section {
+            background: #fff3cd;
+            padding: 20px;
+            border-radius: 8px;
+            margin: 20px 0;
+            border-left: 4px solid #ffc107;
+        }
+        .form-section {
+            background: #f8f9fa;
+            padding: 20px;
+            border-radius: 8px;
+            margin: 15px 0;
+            border-left: 4px solid #6c757d;
+        }
+    </style>
 </head>
 <body>
     <div class="container">
-        <h1>🐘 Wildlife Incident Report Form</h1>
-        <div class="form-container">
-            <div class="form-fields">
-                <form method="POST" enctype="multipart/form-data">
-                    
-                    <!-- CRRT Member Details -->
-                    <div class="form-section">
-                        <h3>CRRT Member Details</h3>
-                        <label>Start Time</label>
-                        <input type="datetime-local" name="start_time" required>
+        <h1>📝 Report Wildlife Incident</h1>
+        
+        <nav>
+            <a href="/">🏠 Home</a>
+            <a href="{{ url_for('view_incidents') }}">📊 View Incidents</a>
+            <a href="{{ url_for('predictions') }}">🔮 Predictions & Hotspots</a>
+            {% if user and user.is_authenticated %}
+                <a href="/logout">🚪 Logout</a>
+            {% else %}
+                <a href="/login">🔐 Login</a>
+            {% endif %}
+        </nav>
 
-                        <label>End Time</label>
-                        <input type="datetime-local" name="end_time" required>
-
-                        <label>Name of CRRT Member</label>
-                        <input type="text" name="crrt_member_name" required placeholder="Enter your name">
-                    </div>
-
-                    <!-- Incident Details -->
-                    <div class="form-section">
-                        <h3>Incident Details</h3>
-                        <label>Date of Incident</label>
-                        <input type="date" name="incident_date" required>
-
-                        <label>Time of Incident</label>
-                        <input type="time" name="incident_time" required>
-                    </div>
-
-                    <!-- GPS Location -->
-                    <div class="form-section">
-                        <h3>GPS Location</h3>
-                        <div class="gps-fields">
-                            <div>
-                                <label>Latitude</label>
-                                <input type="number" step="any" name="latitude" id="latitude" required>
-                            </div>
-                            <div>
-                                <label>Longitude</label>
-                                <input type="number" step="any" name="longitude" id="longitude" required>
-                            </div>
-                            <div>
-                                <label>Altitude (meters)</label>
-                                <input type="number" step="any" name="altitude" id="altitude" value="0">
-                            </div>
-                            <div>
-                                <label>Precision</label>
-                                <input type="number" step="any" name="precision" id="precision" value="0">
-                            </div>
-                        </div>
-                        <button type="button" onclick="getLocation()">📍 Use Current Location</button>
-                    </div>
-
-                    <!-- Incident Information -->
-                    <div class="form-section">
-                        <h3>Incident Information</h3>
-                        <label>Type of Incident</label>
-                        <select name="incident_type" required>
-                            <option value="">Select incident type</option>
-                            <option value="Elephants seen near village">Elephants seen near village</option>
-                            <option value="Crop raiding">Crop raiding</option>
-                            <option value="Property damage">Property damage</option>
-                            <option value="Human injury">Human injury</option>
-                            <option value="Human death">Human death</option>
-                            <option value="Elephant death">Elephant death</option>
-                            <option value="Other">Other</option>
-                        </select>
-
-                        <label>Number of Elephants Observed</label>
-                        <input type="number" name="elephants_observed" min="0" required>
-                    </div>
-
-                    <!-- Response Methods -->
-                    <div class="form-section">
-                        <h3>Response Methods Used</h3>
-                        <div class="checkbox-group">
-                            <input type="checkbox" name="response_noise" id="response_noise">
-                            <label for="response_noise">Noise (shouting, banging)</label>
-                        </div>
-                        <div class="checkbox-group">
-                            <input type="checkbox" name="response_fire" id="response_fire">
-                            <label for="response_fire">Fire or torch use</label>
-                        </div>
-                        <div class="checkbox-group">
-                            <input type="checkbox" name="response_chili" id="response_chili">
-                            <label for="response_chili">Chili smoke or chili bombs</label>
-                        </div>
-                        <div class="checkbox-group">
-                            <input type="checkbox" name="response_flashlight" id="response_flashlight">
-                            <label for="response_flashlight">Flashlight or spotlight</label>
-                        </div>
-                        <div class="checkbox-group">
-                            <input type="checkbox" name="response_other" id="response_other">
-                            <label for="response_other">Other (specify)</label>
-                            <input type="text" name="response_other_text" placeholder="Specify other method">
-                        </div>
-                    </div>
-
-                    <!-- Response Outcome -->
-                    <div class="form-section">
-                        <h3>Response Outcome</h3>
-                        <label>Response Outcome</label>
-                        <select name="response_outcome" required>
-                            <option value="">Select outcome</option>
-                            <option value="Elephants left, damage prevented">Elephants left, damage prevented</option>
-                            <option value="Some damage occurred before elephants left">Some damage occurred before elephants left</option>
-                            <option value="Elephants not deterred, significant damage">Elephants not deterred, significant damage</option>
-                            <option value="Other">Other</option>
-                        </select>
-
-                        <label>Was anyone injured or killed?</label>
-                        <select name="injuries_or_deaths" required>
-                            <option value="No one injured">No one injured</option>
-                            <option value="Yes — someone was injured">Yes — someone was injured</option>
-                            <option value="Yes — someone was killed">Yes — someone was killed</option>
-                            <option value="Unknown">Unknown</option>
-                        </select>
-
-                        <label>Estimated Loss (Tsh)</label>
-                        <input type="number" name="estimated_loss" min="0" required placeholder="Enter amount in Tsh">
-                    </div>
-
-                    <!-- Additional Information -->
-                    <div class="form-section">
-                        <h3>Additional Information</h3>
-                        <label>Upload Photos (optional)</label>
-                        <input type="file" name="picture" accept="image/*">
-
-                        <label>Additional Comments</label>
-                        <textarea name="additional_comments" rows="4" placeholder="Any additional comments or observations..."></textarea>
-                    </div>
-
-                    <input type="submit" value="Submit Incident Report">
-                </form>
-            </div>
-            
-            <div class="map-container">
-                <h3>Select Location on Map</h3>
-                <div id="map"></div>
-                <p style="text-align: center; margin-top: 10px; color: #666;">
-                    Click on the map to set location coordinates automatically
-                </p>
-            </div>
+        <!-- Flash Messages -->
+        <div class="flash-messages">
+            {% with messages = get_flashed_messages(with_categories=true) %}
+                {% if messages %}
+                    {% for category, message in messages %}
+                        <div class="flash-message flash-{{ category }}">{{ message }}</div>
+                    {% endfor %}
+                {% endif %}
+            {% endwith %}
         </div>
+
+        <!-- User Info -->
+        {% if user and user.is_authenticated %}
+        <div class="user-info">
+            👋 Welcome, {{ user.email }}! You are reporting as: <strong>{{ user.email }}</strong>
+        </div>
+
+        <!-- CSV Import Section -->
+        <div class="import-section">
+            <h3>📁 Import Incidents from CSV</h3>
+            <p>Upload a CSV file with incidents data. Required columns: Date, Latitude, Longitude, Species, IncidentType, Severity</p>
+            <form id="importForm" enctype="multipart/form-data">
+                <div class="form-group">
+                    <input type="file" id="csvFile" name="file" accept=".csv" required>
+                </div>
+                <button type="submit" class="btn" style="background: #3498db;">📤 Import CSV</button>
+            </form>
+            <div id="importStatus" style="margin-top: 10px;"></div>
+        </div>
+
+        <!-- Manual Report Form -->
+        <div class="form-section">
+            <h3>➕ Report New Incident</h3>
+            <form id="incidentForm">
+                <!-- Basic Information -->
+                <div class="form-group">
+                    <label for="date">Incident Date and Time:</label>
+                    <input type="datetime-local" id="date" name="date" required>
+                </div>
+
+                <!-- Location Information -->
+                <div class="location-info">
+                    <h3>📍 Location Information</h3>
+                    <p>Click the button below to get your current location, or enter coordinates manually.</p>
+                    
+                    <div class="coordinates">
+                        <div class="form-group">
+                            <label for="latitude">Latitude:</label>
+                            <input type="number" id="latitude" name="latitude" step="any" required placeholder="e.g., -3.557359">
+                        </div>
+                        <div class="form-group">
+                            <label for="longitude">Longitude:</label>
+                            <input type="number" id="longitude" name="longitude" step="any" required placeholder="e.g., 37.784127">
+                        </div>
+                    </div>
+                    
+                    <button type="button" class="btn" onclick="getLocation()" style="background: #3498db;">
+                        📍 Get Current Location
+                    </button>
+                    <span id="locationStatus" style="margin-left: 10px; color: #666;"></span>
+                </div>
+
+                <!-- Wildlife Information -->
+                <div class="form-group">
+                    <label for="species">Species:</label>
+                    <select id="species" name="species" required>
+                        <option value="">Select species...</option>
+                        <option value="Elephant">Elephant</option>
+                        <option value="Lion">Lion</option>
+                        <option value="Leopard">Leopard</option>
+                        <option value="Giraffe">Giraffe</option>
+                        <option value="Zebra">Zebra</option>
+                        <option value="Buffalo">Buffalo</option>
+                        <option value="Rhino">Rhino</option>
+                        <option value="Hippo">Hippo</option>
+                        <option value="Other">Other</option>
+                    </select>
+                </div>
+
+                <div class="form-group">
+                    <label for="incident_type">Incident Type:</label>
+                    <select id="incident_type" name="incident_type" required>
+                        <option value="">Select type...</option>
+                        <option value="Crop Raiding">Crop Raiding</option>
+                        <option value="Property Damage">Property Damage</option>
+                        <option value="Human Injury">Human Injury</option>
+                        <option value="Livestock Loss">Livestock Loss</option>
+                        <option value="Sighting">Sighting</option>
+                        <option value="Other">Other</option>
+                    </select>
+                </div>
+
+                <div class="form-group">
+                    <label for="severity">Severity Level:</label>
+                    <select id="severity" name="severity" required>
+                        <option value="">Select severity...</option>
+                        <option value="Low">Low</option>
+                        <option value="Medium">Medium</option>
+                        <option value="High">High</option>
+                    </select>
+                </div>
+
+                <!-- Additional Information -->
+                <div class="form-group">
+                    <label for="description">Additional Comments (Optional):</label>
+                    <textarea id="description" name="description" rows="4" placeholder="Any additional comments or observations..."></textarea>
+                </div>
+
+                <div style="text-align: center; margin-top: 30px;">
+                    <button type="submit" class="btn">📤 Submit Incident Report</button>
+                    <button type="reset" class="btn btn-secondary">🔄 Clear Form</button>
+                </div>
+            </form>
+
+            <div id="formStatus" style="margin-top: 20px; text-align: center;"></div>
+        </div>
+        {% else %}
+        <div style="text-align: center; margin: 20px 0; padding: 15px; background: #fff3cd; border-radius: 5px;">
+            🔐 Please <a href="/login">login</a> to report incidents
+        </div>
+        {% endif %}
     </div>
 
-<script>
-// Initialize map
-var map = L.map('map').setView([-3.4034, 36.8005], 10);
-L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-    attribution: '&copy; OpenStreetMap contributors'
-}).addTo(map);
+    <script>
+        // Set default date to current datetime
+        document.getElementById('date').value = new Date().toISOString().slice(0, 16);
 
-var marker;
-
-// Click on map to set coordinates
-map.on('click', function(e) {
-    var lat = e.latlng.lat;
-    var lng = e.latlng.lng;
-    
-    document.getElementById('latitude').value = lat.toFixed(6);
-    document.getElementById('longitude').value = lng.toFixed(6);
-    
-    // Update marker
-    if (marker) {
-        map.removeLayer(marker);
-    }
-    marker = L.marker([lat, lng]).addTo(map)
-        .bindPopup("Selected location: " + lat.toFixed(6) + ", " + lng.toFixed(6))
-        .openPopup();
-    
-    // Center map on clicked location
-    map.setView([lat, lng], map.getZoom());
-});
-
-function getLocation() {
-    if (navigator.geolocation) {
-        navigator.geolocation.getCurrentPosition(function(position) {
-            var lat = position.coords.latitude;
-            var lng = position.coords.longitude;
-            var alt = position.coords.altitude || 0;
-            var acc = position.coords.accuracy || 0;
+        // Get current location
+        function getLocation() {
+            const status = document.getElementById('locationStatus');
+            status.textContent = 'Getting location...';
             
-            document.getElementById('latitude').value = lat.toFixed(6);
-            document.getElementById('longitude').value = lng.toFixed(6);
-            document.getElementById('altitude').value = alt.toFixed(1);
-            document.getElementById('precision').value = acc.toFixed(1);
-
-            // Update marker
-            if (marker) {
-                map.removeLayer(marker);
+            if (!navigator.geolocation) {
+                status.textContent = 'Geolocation is not supported by this browser.';
+                return;
             }
-            marker = L.marker([lat, lng]).addTo(map)
-                .bindPopup("Current location: " + lat.toFixed(6) + ", " + lng.toFixed(6))
-                .openPopup();
+
+            navigator.geolocation.getCurrentPosition(
+                function(position) {
+                    const lat = position.coords.latitude;
+                    const lng = position.coords.longitude;
+                    
+                    document.getElementById('latitude').value = lat.toFixed(6);
+                    document.getElementById('longitude').value = lng.toFixed(6);
+                    
+                    status.textContent = 'Location acquired!';
+                    status.style.color = '#27ae60';
+                },
+                function(error) {
+                    let errorMessage = 'Unable to get location. ';
+                    switch(error.code) {
+                        case error.PERMISSION_DENIED:
+                            errorMessage += 'User denied the request for Geolocation.';
+                            break;
+                        case error.POSITION_UNAVAILABLE:
+                            errorMessage += 'Location information is unavailable.';
+                            break;
+                        case error.TIMEOUT:
+                            errorMessage += 'The request to get user location timed out.';
+                            break;
+                        case error.UNKNOWN_ERROR:
+                            errorMessage += 'An unknown error occurred.';
+                            break;
+                    }
+                    status.textContent = errorMessage;
+                    status.style.color = '#e74c3c';
+                }
+            );
+        }
+
+        // Handle form submission
+        document.getElementById('incidentForm').addEventListener('submit', async function(e) {
+            e.preventDefault();
             
-            // Center map on current location
-            map.setView([lat, lng], 15);
-        }, function(error) {
-            alert("Error getting location: " + error.message);
-        });
-    } else {
-        alert("Geolocation is not supported by this browser.");
-    }
-}
+            const submitBtn = this.querySelector('button[type="submit"]');
+            const statusDiv = document.getElementById('formStatus');
+            
+            // Get form data - ONLY fields that exist in the database model
+            const formData = {
+                date: document.getElementById('date').value,
+                latitude: document.getElementById('latitude').value,
+                longitude: document.getElementById('longitude').value,
+                species: document.getElementById('species').value,
+                incident_type: document.getElementById('incident_type').value,
+                severity: document.getElementById('severity').value,
+                description: document.getElementById('description').value
+            };
 
-// Add scale control
-L.control.scale().addTo(map);
-</script>
-<script>
-// Offline functionality
-class OfflineManager {
-    constructor() {
-        this.dbName = 'WildlifeIncidentsDB';
-        this.storeName = 'pendingIncidents';
-        this.init();
-    }
+            console.log('Submitting data:', formData);
 
-    async init() {
-        // Register service worker
-        if ('serviceWorker' in navigator) {
+            // Validate required fields
+            if (!formData.latitude || !formData.longitude || !formData.species || !formData.incident_type || !formData.severity) {
+                statusDiv.innerHTML = '<div class="flash-error">Please fill in all required fields.</div>';
+                return;
+            }
+
+            // Show loading state
+            submitBtn.disabled = true;
+            submitBtn.textContent = 'Submitting...';
+            statusDiv.innerHTML = '<div class="flash-info">Submitting incident report...</div>';
+
             try {
-                await navigator.serviceWorker.register('/static/sw.js');
-                console.log('Service Worker registered');
-            } catch (error) {
-                console.log('Service Worker registration failed:', error);
-            }
-        }
-
-        // Try to sync pending incidents when coming online
-        window.addEventListener('online', () => this.syncPendingIncidents());
-    }
-
-    // Store incident locally when offline
-    async storeIncidentLocally(incidentData) {
-        if (!('indexedDB' in window)) {
-            return this.storeInLocalStorage(incidentData);
-        }
-
-        return new Promise((resolve, reject) => {
-            const request = indexedDB.open(this.dbName, 1);
-            
-            request.onerror = () => reject('IndexedDB not supported');
-            request.onsuccess = (event) => {
-                const db = event.target.result;
-                const transaction = db.transaction([this.storeName], 'readwrite');
-                const store = transaction.objectStore(this.storeName);
-                
-                const localId = Date.now().toString();
-                incidentData.local_id = localId;
-                
-                const addRequest = store.add(incidentData);
-                addRequest.onsuccess = () => resolve(localId);
-                addRequest.onerror = () => reject('Failed to store locally');
-            };
-            
-            request.onupgradeneeded = (event) => {
-                const db = event.target.result;
-                db.createObjectStore(this.storeName, { keyPath: 'local_id' });
-            };
-        });
-    }
-
-    // Fallback to localStorage
-    storeInLocalStorage(incidentData) {
-        const localId = Date.now().toString();
-        incidentData.local_id = localId;
-        
-        const pending = JSON.parse(localStorage.getItem('pendingIncidents') || '[]');
-        pending.push(incidentData);
-        localStorage.setItem('pendingIncidents', JSON.stringify(pending));
-        
-        return Promise.resolve(localId);
-    }
-
-    // Get all pending incidents
-    async getPendingIncidents() {
-        if (!('indexedDB' in window)) {
-            return JSON.parse(localStorage.getItem('pendingIncidents') || '[]');
-        }
-
-        return new Promise((resolve) => {
-            const request = indexedDB.open(this.dbName, 1);
-            request.onsuccess = (event) => {
-                const db = event.target.result;
-                const transaction = db.transaction([this.storeName], 'readonly');
-                const store = transaction.objectStore(this.storeName);
-                const getAllRequest = store.getAll();
-                
-                getAllRequest.onsuccess = () => resolve(getAllRequest.result);
-            };
-            request.onerror = () => resolve([]);
-        });
-    }
-
-    // Remove incident from local storage after successful sync
-    async removePendingIncident(localId) {
-        if (!('indexedDB' in window)) {
-            const pending = JSON.parse(localStorage.getItem('pendingIncidents') || '[]');
-            const filtered = pending.filter(inc => inc.local_id !== localId);
-            localStorage.setItem('pendingIncidents', JSON.stringify(filtered));
-            return;
-        }
-
-        return new Promise((resolve) => {
-            const request = indexedDB.open(this.dbName, 1);
-            request.onsuccess = (event) => {
-                const db = event.target.result;
-                const transaction = db.transaction([this.storeName], 'readwrite');
-                const store = transaction.objectStore(this.storeName);
-                store.delete(localId);
-                resolve();
-            };
-        });
-    }
-
-    // Sync all pending incidents when online
-    async syncPendingIncidents() {
-        const pending = await this.getPendingIncidents();
-        if (pending.length === 0) return;
-
-        try {
-            const response = await fetch('/api/sync-pending', {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ incidents: pending })
-            });
-
-            const result = await response.json();
-            
-            if (result.success) {
-                // Remove synced incidents from local storage
-                for (const sync of result.synced) {
-                    await this.removePendingIncident(sync.local_id);
-                }
-                
-                // Show success message
-                this.showSyncStatus(`Synced ${result.synced.length} pending incidents`);
-                
-                // Refresh incidents page if we're on it
-                if (window.location.pathname === '/incidents') {
-                    window.location.reload();
-                }
-            }
-        } catch (error) {
-            console.error('Sync failed:', error);
-        }
-    }
-
-    showSyncStatus(message) {
-        // Create a temporary notification
-        const notification = document.createElement('div');
-        notification.style.cssText = `
-            position: fixed;
-            top: 20px;
-            right: 20px;
-            background: #27ae60;
-            color: white;
-            padding: 15px;
-            border-radius: 5px;
-            z-index: 10000;
-            box-shadow: 0 2px 10px rgba(0,0,0,0.3);
-        `;
-        notification.textContent = message;
-        document.body.appendChild(notification);
-        
-        setTimeout(() => notification.remove(), 3000);
-    }
-
-    // Check if we're online
-    isOnline() {
-        return navigator.onLine;
-    }
-}
-
-// Initialize offline manager
-const offlineManager = new OfflineManager();
-
-// Modify form submission for offline support
-document.addEventListener('DOMContentLoaded', function() {
-    const form = document.querySelector('form');
-    
-    form.addEventListener('submit', async function(e) {
-        e.preventDefault();
-        
-        const formData = new FormData(form);
-        const incidentData = {
-            start_time: formData.get('start_time'),
-            end_time: formData.get('end_time'),
-            crrt_member_name: formData.get('crrt_member_name'),
-            incident_date: formData.get('incident_date'),
-            incident_time: formData.get('incident_time'),
-            latitude: parseFloat(formData.get('latitude')),
-            longitude: parseFloat(formData.get('longitude')),
-            altitude: parseFloat(formData.get('altitude') || 0),
-            precision: parseFloat(formData.get('precision') || 0),
-            incident_type: formData.get('incident_type'),
-            elephants_observed: parseInt(formData.get('elephants_observed')),
-            response_noise: formData.has('response_noise'),
-            response_fire: formData.has('response_fire'),
-            response_chili: formData.has('response_chili'),
-            response_flashlight: formData.has('response_flashlight'),
-            response_other: formData.has('response_other'),
-            response_other_text: formData.get('response_other_text'),
-            response_outcome: formData.get('response_outcome'),
-            injuries_or_deaths: formData.get('injuries_or_deaths'),
-            estimated_loss: parseFloat(formData.get('estimated_loss')),
-            additional_comments: formData.get('additional_comments')
-        };
-
-        // Handle image separately if needed
-        const imageFile = formData.get('picture');
-        if (imageFile && imageFile.size > 0) {
-            // Convert image to base64 for offline storage
-            incidentData.image_data = await new Promise((resolve) => {
-                const reader = new FileReader();
-                reader.onload = e => resolve(e.target.result);
-                reader.readAsDataURL(imageFile);
-            });
-            incidentData.image_filename = imageFile.name;
-        }
-
-        try {
-            if (offlineManager.isOnline()) {
-                // Try to submit online first
-                const response = await fetch('/api/incidents', {
+                const response = await fetch('/api/report-incident', {
                     method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(incidentData)
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify(formData)
+                });
+
+                console.log('Response status:', response.status);
+
+                if (!response.ok) {
+                    const errorText = await response.text();
+                    console.error('Server error:', errorText);
+                    throw new Error(`Server responded with ${response.status}: ${errorText}`);
+                }
+
+                const result = await response.json();
+                console.log('Success result:', result);
+
+                if (response.ok) {
+                    statusDiv.innerHTML = `<div class="flash-success">✅ ${result.message} (ID: ${result.incident_id})</div>`;
+                    // Reset form but keep date
+                    document.getElementById('incidentForm').reset();
+                    document.getElementById('date').value = new Date().toISOString().slice(0, 16);
+                    
+                    // Auto-refresh incidents after 2 seconds
+                    setTimeout(() => {
+                        window.location.href = '/view-incidents';
+                    }, 2000);
+                } else {
+                    statusDiv.innerHTML = `<div class="flash-error">❌ ${result.error}</div>`;
+                }
+            } catch (error) {
+                console.error('Error:', error);
+                statusDiv.innerHTML = `<div class="flash-error">❌ Error: ${error.message}. Please check your connection and try again.</div>`;
+                
+                // Save to local storage for offline sync (simplified version)
+                if (typeof(Storage) !== "undefined") {
+                    try {
+                        let pendingIncidents = JSON.parse(localStorage.getItem('pendingIncidents') || '[]');
+                        pendingIncidents.push({
+                            ...formData,
+                            timestamp: new Date().toISOString(),
+                            id: 'pending_' + Date.now()
+                        });
+                        localStorage.setItem('pendingIncidents', JSON.stringify(pendingIncidents));
+                        statusDiv.innerHTML += '<div class="flash-info">📱 Incident saved offline. It will sync when connection returns.</div>';
+                    } catch (storageError) {
+                        console.error('Storage error:', storageError);
+                    }
+                }
+            } finally {
+                submitBtn.disabled = false;
+                submitBtn.textContent = '📤 Submit Incident Report';
+            }
+        });
+
+        // Handle CSV import
+        document.getElementById('importForm').addEventListener('submit', async function(e) {
+            e.preventDefault();
+            
+            const fileInput = document.getElementById('csvFile');
+            const statusDiv = document.getElementById('importStatus');
+            const submitBtn = this.querySelector('button[type="submit"]');
+            
+            if (!fileInput.files[0]) {
+                statusDiv.innerHTML = '<div class="flash-error">Please select a CSV file.</div>';
+                return;
+            }
+
+            const formData = new FormData();
+            formData.append('file', fileInput.files[0]);
+
+            submitBtn.disabled = true;
+            submitBtn.textContent = 'Importing...';
+            statusDiv.innerHTML = '<div class="flash-info">Importing CSV file...</div>';
+
+            try {
+                const response = await fetch('/api/import-incidents', {
+                    method: 'POST',
+                    body: formData
                 });
 
                 const result = await response.json();
-                
-                if (result.success) {
-                    // Success - redirect to incidents page
-                    window.location.href = '/incidents';
+
+                if (response.ok) {
+                    let message = `<div class="flash-success">✅ ${result.message}`;
+                    if (result.warning) {
+                        message += `<br>⚠ ${result.warning}`;
+                    }
+                    if (result.errors && result.errors.length > 0) {
+                        message += `<br><small>Errors: ${result.errors.join(', ')}</small>`;
+                    }
+                    message += '</div>';
+                    statusDiv.innerHTML = message;
+                    fileInput.value = '';
+                    
+                    // Refresh page to show new incidents
+                    setTimeout(() => {
+                        window.location.reload();
+                    }, 3000);
                 } else {
-                    throw new Error(result.error);
+                    statusDiv.innerHTML = `<div class="flash-error">❌ ${result.error}</div>`;
+                }
+            } catch (error) {
+                console.error('Error:', error);
+                statusDiv.innerHTML = '<div class="flash-error">❌ Network error during import.</div>';
+            } finally {
+                submitBtn.disabled = false;
+                submitBtn.textContent = '📤 Import CSV';
+            }
+        });
+
+        // Load pending incidents from localStorage
+        function loadPendingIncidents() {
+            if (typeof(Storage) !== "undefined") {
+                const pendingIncidents = JSON.parse(localStorage.getItem('pendingIncidents') || '[]');
+                if (pendingIncidents.length > 0) {
+                    const statusDiv = document.getElementById('formStatus');
+                    statusDiv.innerHTML += `<div class="flash-info">
+                        📱 You have ${pendingIncidents.length} pending offline incidents. 
+                        <button onclick="syncPendingIncidents()" style="background: #f39c12; color: white; border: none; padding: 5px 10px; border-radius: 3px; margin-left: 10px; cursor: pointer;">
+                            Sync Now
+                        </button>
+                    </div>`;
+                }
+            }
+        }
+
+        // Sync pending incidents
+        async function syncPendingIncidents() {
+            if (typeof(Storage) !== "undefined") {
+                const pendingIncidents = JSON.parse(localStorage.getItem('pendingIncidents') || '[]');
+                const statusDiv = document.getElementById('formStatus');
+                
+                if (pendingIncidents.length === 0) {
+                    statusDiv.innerHTML = '<div class="flash-info">No pending incidents to sync.</div>';
+                    return;
+                }
+
+                statusDiv.innerHTML = '<div class="flash-info">Syncing pending incidents...</div>';
+
+                let successCount = 0;
+                let errorCount = 0;
+
+                for (const incident of pendingIncidents) {
+                    try {
+                        const response = await fetch('/api/report-incident', {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json',
+                            },
+                            body: JSON.stringify(incident)
+                        });
+
+                        if (response.ok) {
+                            successCount++;
+                        } else {
+                            errorCount++;
+                        }
+                    } catch (error) {
+                        errorCount++;
+                    }
+                }
+
+                // Remove synced incidents
+                if (successCount > 0) {
+                    localStorage.removeItem('pendingIncidents');
+                    statusDiv.innerHTML = `<div class="flash-success">✅ Successfully synced ${successCount} incidents. ${errorCount > 0 ? `Failed: ${errorCount}` : ''}</div>`;
+                    setTimeout(() => {
+                        window.location.reload();
+                    }, 2000);
+                } else {
+                    statusDiv.innerHTML = `<div class="flash-error">❌ Failed to sync incidents. Please try again.</div>`;
+                }
+            }
+        }
+
+        // Load pending incidents when page loads
+        document.addEventListener('DOMContentLoaded', loadPendingIncidents);
+
+        // Offline detection
+        function updateOnlineStatus() {
+            if (!navigator.onLine) {
+                if (!document.querySelector('.offline-indicator')) {
+                    const indicator = document.createElement('div');
+                    indicator.className = 'offline-indicator';
+                    indicator.innerHTML = '🔴 Offline - Data will be saved locally';
+                    document.body.appendChild(indicator);
                 }
             } else {
-                throw new Error('Offline - storing locally');
-            }
-        } catch (error) {
-            // Offline or network error - store locally
-            const localId = await offlineManager.storeIncidentLocally(incidentData);
-            
-            // Show offline success message
-            offlineManager.showSyncStatus('Incident saved offline. Will sync when connection returns.');
-            
-            // Clear form
-            form.reset();
-            
-            // Optionally redirect or show confirmation
-            setTimeout(() => {
-                if (confirm('Incident saved offline! Would you like to view pending incidents?')) {
-                    window.location.href = '/incidents';
+                const indicator = document.querySelector('.offline-indicator');
+                if (indicator) {
+                    indicator.remove();
                 }
-            }, 1000);
+            }
         }
-    });
-});
-</script>
-<script>
-// Service Worker Registration
-if ('serviceWorker' in navigator) {
-  window.addEventListener('load', function() {
-    navigator.serviceWorker.register('/static/sw.js')
-      .then(function(registration) {
-        console.log('ServiceWorker registration successful with scope: ', registration.scope);
-      })
-      .catch(function(error) {
-        console.log('ServiceWorker registration failed: ', error);
-      });
-  });
-}
 
-// Offline detection and custom message
-function checkOnlineStatus() {
-  if (!navigator.onLine) {
-    // Show custom offline message instead of browser's default
-    const offlineMessage = document.createElement('div');
-    offlineMessage.style.cssText = `
-      position: fixed;
-      top: 0;
-      left: 0;
-      width: 100%;
-      background: #ff6b6b;
-      color: white;
-      padding: 10px;
-      text-align: center;
-      z-index: 10000;
-      font-weight: bold;
-    `;
-    offlineMessage.innerHTML = '🔴 You are currently offline. You can still fill out reports - they will sync when you reconnect.';
-    document.body.appendChild(offlineMessage);
-  }
-}
-
-// Check status on load and when connection changes
-window.addEventListener('load', checkOnlineStatus);
-window.addEventListener('online', function() {
-  const offlineMsg = document.querySelector('[style*="background: #ff6b6b"]');
-  if (offlineMsg) offlineMsg.remove();
-  
-  // Show online message
-  const onlineMessage = document.createElement('div');
-  onlineMessage.style.cssText = `
-    position: fixed;
-    top: 0;
-    left: 0;
-    width: 100%;
-    background: #51cf66;
-    color: white;
-    padding: 10px;
-    text-align: center;
-    z-index: 10000;
-    font-weight: bold;
-  `;
-  onlineMessage.innerHTML = '🟢 You are back online!';
-  document.body.appendChild(onlineMessage);
-  setTimeout(() => onlineMessage.remove(), 3000);
-});
-
-window.addEventListener('offline', function() {
-  checkOnlineStatus();
-});
-</script>
-<script>
-// Pre-cache all important pages when online
-if ('serviceWorker' in navigator && navigator.serviceWorker.controller) {
-    // Tell service worker to cache additional pages
-    navigator.serviceWorker.controller.postMessage({
-        type: 'CACHE_URLS',
-        urls: ['/report', '/incidents', '/export', '/offline']
-    });
-}
-
-// Enhanced offline detection
-function updateOnlineStatus() {
-    if (!navigator.onLine) {
-        // Add offline indicator
-        if (!document.querySelector('.offline-indicator')) {
-            const indicator = document.createElement('div');
-            indicator.className = 'offline-indicator';
-            indicator.style.cssText = `
-                position: fixed;
-                top: 10px;
-                right: 10px;
-                background: #e74c3c;
-                color: white;
-                padding: 8px 15px;
-                border-radius: 20px;
-                font-size: 12px;
-                font-weight: bold;
-                z-index: 10000;
-                box-shadow: 0 2px 10px rgba(0,0,0,0.3);
-            `;
-            indicator.innerHTML = '🔴 Offline';
-            document.body.appendChild(indicator);
-        }
-    } else {
-        // Remove offline indicator
-        const indicator = document.querySelector('.offline-indicator');
-        if (indicator) {
-            indicator.remove();
-        }
-    }
-}
-
-// Set up online/offline listeners
-window.addEventListener('online', updateOnlineStatus);
-window.addEventListener('offline', updateOnlineStatus);
-updateOnlineStatus(); // Check initial status
-
-// Enhanced link handling for offline
-document.addEventListener('click', function(e) {
-    if (e.target.tagName === 'A' && !navigator.onLine) {
-        const href = e.target.getAttribute('href');
-        if (href && href.startsWith('/') && !href.startsWith('//')) {
-            // For internal links, let them proceed - service worker will handle
-            console.log('Offline navigation attempt:', href);
-        }
-    }
-});
-</script>
+        window.addEventListener('online', updateOnlineStatus);
+        window.addEventListener('offline', updateOnlineStatus);
+        updateOnlineStatus();
+    </script>
 </body>
 </html>
