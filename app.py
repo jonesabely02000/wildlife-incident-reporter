@@ -5,6 +5,7 @@ from datetime import datetime, timedelta
 import logging
 import csv
 from io import StringIO
+from collections import Counter
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -14,19 +15,19 @@ app = Flask(__name__)
 
 # Configuration
 app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', 'dev-key-123-change-in-production')
-app.config['SQLALCHEMY_DATABASE_URI'] = os.environ.get('DATABASE_URL', 'sqlite:///wildlife.db')
+
+# Handle database URL for different environments
+database_url = os.environ.get('DATABASE_URL')
+if database_url and database_url.startswith('postgres://'):
+    database_url = database_url.replace('postgres://', 'postgresql://', 1)
+
+app.config['SQLALCHEMY_DATABASE_URI'] = database_url or 'sqlite:///wildlife.db'
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 app.config['PERMANENT_SESSION_LIFETIME'] = timedelta(days=7)
 
-# Handle Heroku-style database URLs
-db_url = os.environ.get('DATABASE_URL')
-if db_url and db_url.startswith('postgres://'):
-    db_url = db_url.replace('postgres://', 'postgresql://', 1)
-    app.config['SQLALCHEMY_DATABASE_URI'] = db_url
-
 db = SQLAlchemy(app)
 
-# User model
+# Database Models
 class User(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     email = db.Column(db.String(120), unique=True, nullable=False)
@@ -57,17 +58,16 @@ class Incident(db.Model):
     species = db.Column(db.String(100), nullable=False)
     incident_type = db.Column(db.String(100), nullable=False)
     severity = db.Column(db.String(50), nullable=False)
-    description = db.Column(db.Text)  # Added description field
+    description = db.Column(db.Text)
     reported_by = db.Column(db.String(120), nullable=False)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
-# Helper function to get current user
+# Helper Functions
 def get_current_user():
     if 'user_id' in session:
         return User.query.get(session['user_id'])
     return None
 
-# Login required decorator
 def login_required(f):
     from functools import wraps
     @wraps(f)
@@ -79,27 +79,30 @@ def login_required(f):
         return f(*args, **kwargs)
     return decorated_function
 
-# Initialize database
+def get_all_incidents():
+    """Get all incidents for team collaboration"""
+    return Incident.query.order_by(Incident.date.desc()).all()
+
+def get_user_incidents(user):
+    """Get incidents for specific user"""
+    return Incident.query.filter_by(reported_by=user.email).order_by(Incident.date.desc()).all()
+
 def init_db():
     with app.app_context():
         try:
-            print("Creating database tables...")
             db.create_all()
-            print("Database tables created successfully")
+            logger.info("Database tables created successfully")
             
-            # Create guest user if doesn't exist
+            # Create guest user
             guest_email = "guest@wildlife.com"
             if not User.query.filter_by(email=guest_email).first():
-                print("Creating guest user...")
                 guest_user = User(email=guest_email, password="guest123", verified=True)
                 db.session.add(guest_user)
                 db.session.commit()
-                print("Guest user created successfully")
-            else:
-                print("Guest user already exists")
+                logger.info("Guest user created successfully")
                 
         except Exception as e:
-            print(f"Database initialization error: {str(e)}")
+            logger.error(f"Database initialization error: {str(e)}")
 
 # Routes
 @app.route('/')
@@ -117,7 +120,8 @@ def home():
 def view_incidents():
     try:
         user = get_current_user()
-        incidents = Incident.query.filter_by(reported_by=user.email).order_by(Incident.date.desc()).all()
+        # Show user's own incidents only
+        incidents = get_user_incidents(user)
         return render_template('incidents.html', user=user, incidents=incidents)
     except Exception as e:
         logger.error(f"Error in view_incidents: {str(e)}")
@@ -136,113 +140,15 @@ def predictions():
     user = get_current_user()
     return render_template('predictions.html', user=user)
 
-@app.route('/login', methods=['GET', 'POST'])
-def login():
-    if get_current_user():
-        return redirect(url_for('home'))
-    
-    if request.method == 'POST':
-        email = request.form.get('email', '').strip()
-        password = request.form.get('password', '')
-        
-        user = User.query.filter_by(email=email, password=password).first()
-        if user:
-            session['user_id'] = user.id
-            session['user_email'] = user.email
-            session.permanent = True
-            flash('Login successful!', 'success')
-            
-            next_page = request.args.get('next')
-            if next_page:
-                return redirect(next_page)
-            return redirect(url_for('home'))
-        else:
-            flash('Invalid email or password', 'error')
-    
-    return render_template('login.html')
+# ... (login, register, logout routes remain the same - keep your existing code)
 
-@app.route('/register', methods=['GET', 'POST'])
-def register():
-    if get_current_user():
-        return redirect(url_for('home'))
-    
-    if request.method == 'POST':
-        email = request.form.get('email', '').strip().lower()
-        password = request.form.get('password', '')
-        confirm_password = request.form.get('confirm_password', '')
-        
-        if not email or not password:
-            flash('All fields are required', 'error')
-            return render_template('register.html')
-        
-        if password != confirm_password:
-            flash('Passwords do not match', 'error')
-            return render_template('register.html')
-        
-        if len(password) < 3:
-            flash('Password must be at least 3 characters', 'error')
-            return render_template('register.html')
-        
-        existing_user = User.query.filter_by(email=email).first()
-        if existing_user:
-            flash('Email already registered', 'error')
-            return render_template('register.html')
-        
-        try:
-            user = User(email=email, password=password, verified=True)
-            db.session.add(user)
-            db.session.commit()
-            
-            session['user_id'] = user.id
-            session['user_email'] = user.email
-            session.permanent = True
-            
-            flash('Registration successful!', 'success')
-            return redirect(url_for('home'))
-        except Exception as e:
-            db.session.rollback()
-            flash('Registration failed. Please try again.', 'error')
-    
-    return render_template('register.html')
-
-@app.route('/login-guest')
-def login_guest():
-    if get_current_user():
-        return redirect(url_for('home'))
-    
-    try:
-        guest_email = "guest@wildlife.com"
-        guest_user = User.query.filter_by(email=guest_email).first()
-        
-        if not guest_user:
-            guest_user = User(email=guest_email, password="guest123", verified=True)
-            db.session.add(guest_user)
-            db.session.commit()
-        
-        session['user_id'] = guest_user.id
-        session['user_email'] = guest_user.email
-        session.permanent = True
-        
-        flash('Logged in as guest!', 'success')
-        return redirect(url_for('home'))
-        
-    except Exception as e:
-        flash('Guest login failed. Please try regular registration.', 'error')
-        return redirect(url_for('login'))
-
-@app.route('/logout')
-def logout():
-    session.clear()
-    flash('Logged out successfully', 'success')
-    return redirect(url_for('index'))
-
-# API Routes
+# API Routes - UPDATED FOR TEAM COLLABORATION
 @app.route('/api/incidents', methods=['GET'])
 @login_required
 def get_incidents():
     try:
         user = get_current_user()
-        incidents = Incident.query.filter_by(reported_by=user.email).all()
+        incidents = get_user_incidents(user)
         
         incidents_data = []
         for incident in incidents:
@@ -255,13 +161,38 @@ def get_incidents():
                 'incident_type': incident.incident_type,
                 'severity': incident.severity,
                 'description': incident.description,
-                'reported_by': incident.reported_by,
-                'created_at': incident.created_at.isoformat()
+                'reported_by': incident.reported_by
             })
         
         return jsonify({'incidents': incidents_data})
     except Exception as e:
         logger.error(f"Error in get_incidents: {str(e)}")
+        return jsonify({'error': 'Failed to load incidents'}), 500
+
+@app.route('/api/all-incidents', methods=['GET'])
+@login_required
+def get_all_incidents_api():
+    """Get ALL incidents for team predictions and hotspots"""
+    try:
+        incidents = get_all_incidents()
+        
+        incidents_data = []
+        for incident in incidents:
+            incidents_data.append({
+                'id': incident.id,
+                'date': incident.date.isoformat(),
+                'latitude': incident.latitude,
+                'longitude': incident.longitude,
+                'species': incident.species,
+                'incident_type': incident.incident_type,
+                'severity': incident.severity,
+                'description': incident.description,
+                'reported_by': incident.reported_by
+            })
+        
+        return jsonify({'incidents': incidents_data, 'total': len(incidents_data)})
+    except Exception as e:
+        logger.error(f"Error in get_all_incidents: {str(e)}")
         return jsonify({'error': 'Failed to load incidents'}), 500
 
 @app.route('/api/report-incident', methods=['POST'])
@@ -278,8 +209,14 @@ def api_report_incident():
             if field not in data or not data[field]:
                 return jsonify({'error': f'Missing required field: {field}'}), 400
         
+        # Parse date
+        try:
+            incident_date = datetime.fromisoformat(data['date'].replace('Z', '+00:00'))
+        except ValueError:
+            return jsonify({'error': 'Invalid date format'}), 400
+        
         incident = Incident(
-            date=datetime.fromisoformat(data['date'].replace('Z', '+00:00')),
+            date=incident_date,
             latitude=float(data['latitude']),
             longitude=float(data['longitude']),
             species=data['species'],
@@ -302,116 +239,24 @@ def api_report_incident():
         logger.error(f"Error reporting incident: {str(e)}")
         return jsonify({'error': f'Failed to report incident: {str(e)}'}), 500
 
-@app.route('/api/import-incidents', methods=['POST'])
-@login_required
-def import_incidents():
-    user = get_current_user()
-    
-    try:
-        if 'file' not in request.files:
-            return jsonify({'error': 'No file uploaded'}), 400
-        
-        file = request.files['file']
-        if file.filename == '':
-            return jsonify({'error': 'No file selected'}), 400
-        
-        if file and file.filename.endswith('.csv'):
-            # Read CSV file
-            stream = StringIO(file.stream.read().decode('UTF-8'))
-            csv_reader = csv.DictReader(stream)
-            imported_count = 0
-            errors = []
-            
-            for row_num, row in enumerate(csv_reader, 2):  # Start from 2 (header is row 1)
-                try:
-                    # Handle different column name formats
-                    date_str = row.get('Date') or row.get('date') or row.get('Incident Date')
-                    latitude = row.get('Latitude') or row.get('latitude')
-                    longitude = row.get('Longitude') or row.get('longitude')
-                    species = row.get('Species') or row.get('species')
-                    incident_type = row.get('IncidentType') or row.get('Incident Type') or row.get('incident_type')
-                    severity = row.get('Severity') or row.get('severity')
-                    description = row.get('Description') or row.get('description') or ''
-                    
-                    # Validate required fields
-                    if not all([date_str, latitude, longitude, species, incident_type, severity]):
-                        errors.append(f"Row {row_num}: Missing required fields")
-                        continue
-                    
-                    # Parse date (handle different formats)
-                    try:
-                        incident_date = datetime.fromisoformat(date_str.replace('Z', '+00:00'))
-                    except ValueError:
-                        try:
-                            incident_date = datetime.strptime(date_str, '%Y-%m-%d %H:%M:%S')
-                        except ValueError:
-                            try:
-                                incident_date = datetime.strptime(date_str, '%Y-%m-%d')
-                            except ValueError:
-                                errors.append(f"Row {row_num}: Invalid date format - {date_str}")
-                                continue
-                    
-                    incident = Incident(
-                        date=incident_date,
-                        latitude=float(latitude),
-                        longitude=float(longitude),
-                        species=species,
-                        incident_type=incident_type,
-                        severity=severity,
-                        description=description,
-                        reported_by=user.email
-                    )
-                    
-                    db.session.add(incident)
-                    imported_count += 1
-                    
-                except Exception as e:
-                    errors.append(f"Row {row_num}: {str(e)}")
-                    continue
-            
-            db.session.commit()
-            
-            result = {
-                'message': f'Imported {imported_count} incidents successfully',
-                'imported': imported_count,
-                'errors': errors
-            }
-            
-            if errors:
-                result['warning'] = f'Completed with {len(errors)} errors'
-            
-            return jsonify(result)
-        else:
-            return jsonify({'error': 'Invalid file format. Please upload a CSV file.'}), 400
-            
-    except Exception as e:
-        db.session.rollback()
-        logger.error(f"Error importing incidents: {str(e)}")
-        return jsonify({'error': f'Import failed: {str(e)}'}), 500
-
 @app.route('/api/generate-predictions', methods=['GET'])
 @login_required
 def generate_predictions():
-    user = get_current_user()
-    
     try:
-        incidents = Incident.query.filter_by(reported_by=user.email).all()
+        # Use ALL incidents for predictions (team collaboration)
+        incidents = get_all_incidents()
         
         if len(incidents) < 2:
-            return jsonify({'error': 'Need at least 2 incidents to generate predictions'}), 400
+            return jsonify({'error': 'Need at least 2 incidents to generate predictions. Currently team has ' + str(len(incidents)) + ' incidents.'}), 400
         
-        predictions = []
-        for i, incident in enumerate(incidents[:5]):
-            risk_level = "HIGH" if incident.severity == "High" else "MEDIUM"
-            predictions.append({
-                'area_name': f'Area {i+1}',
-                'latitude': incident.latitude,
-                'longitude': incident.longitude,
-                'risk_level': risk_level,
-                'reason': f'Based on {incident.species} {incident.incident_type} incident'
-            })
+        # Advanced prediction logic using all team data
+        predictions = generate_advanced_predictions(incidents)
         
-        return jsonify({'predictions': predictions})
+        return jsonify({
+            'predictions': predictions,
+            'total_incidents_used': len(incidents),
+            'data_source': 'team_collaboration'
+        })
     except Exception as e:
         logger.error(f"Error generating predictions: {str(e)}")
         return jsonify({'error': 'Failed to generate predictions'}), 500
@@ -419,36 +264,145 @@ def generate_predictions():
 @app.route('/api/generate-hotspots', methods=['GET'])
 @login_required
 def generate_hotspots():
-    user = get_current_user()
-    
     try:
-        incidents = Incident.query.filter_by(reported_by=user.email).all()
+        # Use ALL incidents for hotspots (team collaboration)
+        incidents = get_all_incidents()
         
         if len(incidents) < 2:
-            return jsonify({'error': 'Need at least 2 incidents to identify hotspots'}), 400
+            return jsonify({'error': 'Need at least 2 incidents to identify hotspots. Currently team has ' + str(len(incidents)) + ' incidents.'}), 400
         
-        hotspots = []
-        species_count = {}
+        # Advanced hotspot detection using all team data
+        hotspots = generate_advanced_hotspots(incidents)
         
-        for incident in incidents:
-            species_count[incident.species] = species_count.get(incident.species, 0) + 1
-        
-        main_species = sorted(species_count.items(), key=lambda x: x[1], reverse=True)[:3]
-        main_species_names = [species for species, count in main_species]
-        
-        for i, incident in enumerate(incidents[:5]):
-            hotspots.append({
-                'name': f'Hotspot {i+1}',
-                'center_lat': incident.latitude,
-                'center_lng': incident.longitude,
-                'incident_count': 1,
-                'main_species': main_species_names
-            })
-        
-        return jsonify({'hotspots': hotspots})
+        return jsonify({
+            'hotspots': hotspots,
+            'total_incidents_used': len(incidents),
+            'data_source': 'team_collaboration'
+        })
     except Exception as e:
         logger.error(f"Error generating hotspots: {str(e)}")
         return jsonify({'error': 'Failed to generate hotspots'}), 500
+
+def generate_advanced_predictions(incidents):
+    """Generate predictions using all team incidents"""
+    predictions = []
+    
+    # Group incidents by area clusters
+    clusters = cluster_incidents(incidents)
+    
+    for i, cluster in enumerate(clusters[:6]):  # Top 6 clusters
+        if not cluster:
+            continue
+            
+        # Calculate cluster center
+        center_lat = sum(inc.latitude for inc in cluster) / len(cluster)
+        center_lng = sum(inc.longitude for inc in cluster) / len(cluster)
+        
+        # Calculate risk level based on severity and frequency
+        high_severity_count = sum(1 for inc in cluster if inc.severity == 'High')
+        medium_severity_count = sum(1 for inc in cluster if inc.severity == 'Medium')
+        
+        if high_severity_count > 0:
+            risk_level = "VERY HIGH"
+        elif medium_severity_count > 0:
+            risk_level = "HIGH"
+        else:
+            risk_level = "MEDIUM"
+        
+        # Get most common species in this cluster
+        species_counter = Counter(inc.species for inc in cluster)
+        main_species = species_counter.most_common(2)
+        
+        predictions.append({
+            'area_name': f'Risk Zone {i+1}',
+            'latitude': round(center_lat, 6),
+            'longitude': round(center_lng, 6),
+            'risk_level': risk_level,
+            'incident_count': len(cluster),
+            'main_species': [species for species, count in main_species],
+            'reason': f'Based on {len(cluster)} incidents including {high_severity_count} high severity'
+        })
+    
+    return predictions
+
+def generate_advanced_hotspots(incidents):
+    """Generate hotspots using all team incidents"""
+    hotspots = []
+    
+    # Group incidents by area clusters
+    clusters = cluster_incidents(incidents)
+    
+    for i, cluster in enumerate(clusters[:8]):  # Top 8 hotspots
+        if not cluster:
+            continue
+            
+        # Calculate cluster center
+        center_lat = sum(inc.latitude for inc in cluster) / len(cluster)
+        center_lng = sum(inc.longitude for inc in cluster) / len(cluster)
+        
+        # Get species distribution
+        species_counter = Counter(inc.species for inc in cluster)
+        main_species = [species for species, count in species_counter.most_common(3)]
+        
+        # Get incident type distribution
+        type_counter = Counter(inc.incident_type for inc in cluster)
+        main_types = [inc_type for inc_type, count in type_counter.most_common(2)]
+        
+        hotspots.append({
+            'name': f'Hotspot {i+1}',
+            'center_lat': round(center_lat, 6),
+            'center_lng': round(center_lng, 6),
+            'incident_count': len(cluster),
+            'main_species': main_species,
+            'main_incident_types': main_types,
+            'radius_km': min(5, max(1, len(cluster) // 2))  # Dynamic radius based on incident count
+        })
+    
+    return hotspots
+
+def cluster_incidents(incidents, max_distance_km=10):
+    """Group incidents into geographic clusters"""
+    if not incidents:
+        return []
+    
+    clusters = []
+    used_incidents = set()
+    
+    for incident in incidents:
+        if incident.id in used_incidents:
+            continue
+            
+        cluster = [incident]
+        used_incidents.add(incident.id)
+        
+        # Find nearby incidents
+        for other_incident in incidents:
+            if (other_incident.id not in used_incidents and 
+                calculate_distance(incident.latitude, incident.longitude, 
+                                 other_incident.latitude, other_incident.longitude) <= max_distance_km):
+                cluster.append(other_incident)
+                used_incidents.add(other_incident.id)
+        
+        clusters.append(cluster)
+    
+    # Sort clusters by size (largest first)
+    clusters.sort(key=len, reverse=True)
+    return clusters
+
+def calculate_distance(lat1, lon1, lat2, lon2):
+    """Calculate distance between two coordinates in kilometers"""
+    from math import radians, sin, cos, sqrt, atan2
+    
+    R = 6371  # Earth radius in kilometers
+    
+    lat1, lon1, lat2, lon2 = map(radians, [lat1, lon1, lat2, lon2])
+    dlat = lat2 - lat1
+    dlon = lon2 - lon1
+    
+    a = sin(dlat/2)**2 + cos(lat1) * cos(lat2) * sin(dlon/2)**2
+    c = 2 * atan2(sqrt(a), sqrt(1-a))
+    
+    return R * c
 
 @app.route('/api/statistics', methods=['GET'])
 @login_required
@@ -456,59 +410,36 @@ def get_statistics():
     user = get_current_user()
     
     try:
-        total_incidents = Incident.query.filter_by(reported_by=user.email).count()
-        high_severity = Incident.query.filter_by(reported_by=user.email, severity='High').count()
+        # User's personal statistics
+        user_incidents = get_user_incidents(user)
+        user_total = len(user_incidents)
+        user_high_severity = sum(1 for inc in user_incidents if inc.severity == 'High')
+        
+        # Team statistics
+        team_incidents = get_all_incidents()
+        team_total = len(team_incidents)
+        team_high_severity = sum(1 for inc in team_incidents if inc.severity == 'High')
         
         return jsonify({
-            'total_incidents': total_incidents,
-            'imported_incidents': total_incidents,
-            'high_risk_areas': min(5, total_incidents),
-            'high_severity_count': high_severity,
-            'data_coverage': min(100, total_incidents * 10)
+            # Personal stats
+            'total_incidents': user_total,
+            'high_severity_count': user_high_severity,
+            'data_coverage': min(100, user_total * 10),
+            
+            # Team stats
+            'team_total_incidents': team_total,
+            'team_high_severity': team_high_severity,
+            'team_members': User.query.count(),
+            'team_data_coverage': min(100, team_total * 5)
         })
     except Exception as e:
         logger.error(f"Error getting statistics: {str(e)}")
         return jsonify({'error': 'Failed to load statistics'}), 500
 
-# Export route
-@app.route('/export')
-@login_required
-def export_incidents():
-    user = get_current_user()
-    
-    try:
-        incidents = Incident.query.filter_by(reported_by=user.email).all()
-        
-        output = []
-        output.append('ID,Date,Latitude,Longitude,Species,IncidentType,Severity,Description,ReportedBy,CreatedAt')
-        
-        for incident in incidents:
-            output.append(f'{incident.id},{incident.date},{incident.latitude},{incident.longitude},{incident.species},{incident.incident_type},{incident.severity},"{incident.description}",{incident.reported_by},{incident.created_at}')
-        
-        response = '\n'.join(output)
-        return Response(
-            response,
-            mimetype="text/csv",
-            headers={"Content-disposition": "attachment; filename=incidents.csv"}
-        )
-    except Exception as e:
-        logger.error(f"Error exporting incidents: {str(e)}")
-        flash('Error exporting data', 'error')
-        return redirect(url_for('view_incidents'))
+# ... (rest of your existing routes - export, debug, etc.)
 
-# Error handlers
-@app.errorhandler(404)
-def not_found_error(error):
-    return render_template('404.html'), 404
-
-@app.errorhandler(500)
-def internal_error(error):
-    db.session.rollback()
-    logger.error(f"Internal server error: {str(error)}")
-    return render_template('500.html'), 500
-
-# Initialize database when app starts
-print("Starting Wildlife Incident Reporter...")
+# Initialize database
+print("Starting Wildlife Incident Reporter with Team Collaboration...")
 init_db()
 
 if __name__ == '__main__':
