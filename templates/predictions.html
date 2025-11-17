@@ -2,6 +2,7 @@
 <html>
 <head>
     <title>Predictions & Hotspots</title>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <style>
         body {
             font-family: Arial, sans-serif;
@@ -15,7 +16,7 @@
             padding: 30px;
             border-radius: 15px;
             box-shadow: 0 0 20px rgba(0,0,0,0.3);
-            max-width: 1200px;
+            max-width: 1400px;
             margin: 0 auto;
         }
         h1 {
@@ -154,6 +155,85 @@
             margin: 2px;
             display: inline-block;
         }
+        
+        /* Map Styles */
+        .map-container {
+            height: 500px;
+            border-radius: 10px;
+            overflow: hidden;
+            box-shadow: 0 4px 15px rgba(0,0,0,0.2);
+            margin: 20px 0;
+            border: 3px solid #3498db;
+        }
+        #hotspotMap {
+            height: 100%;
+            width: 100%;
+        }
+        .map-controls {
+            background: white;
+            padding: 15px;
+            border-radius: 8px;
+            margin: 15px 0;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+        }
+        .map-legend {
+            background: white;
+            padding: 10px 15px;
+            border-radius: 5px;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+            position: absolute;
+            bottom: 20px;
+            right: 20px;
+            z-index: 1000;
+            font-size: 12px;
+        }
+        .legend-item {
+            display: flex;
+            align-items: center;
+            margin: 5px 0;
+        }
+        .legend-color {
+            width: 20px;
+            height: 20px;
+            border-radius: 50%;
+            margin-right: 8px;
+            border: 2px solid white;
+            box-shadow: 0 1px 3px rgba(0,0,0,0.3);
+        }
+        
+        /* Animal Icon Colors */
+        .icon-elephant { background: #8B4513; }
+        .icon-lion { background: #FFD700; }
+        .icon-leopard { background: #D2691E; }
+        .icon-giraffe { background: #FFA500; }
+        .icon-zebra { background: #2F4F4F; }
+        .icon-buffalo { background: #696969; }
+        .icon-rhino { background: #808080; }
+        .icon-hippo { background: #708090; }
+        .icon-other { background: #6A5ACD; }
+        
+        .hotspot-circle {
+            stroke: #000;
+            stroke-width: 2;
+            stroke-opacity: 0.8;
+            fill-opacity: 0.4;
+        }
+        
+        .analysis-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+            margin: 20px 0;
+        }
+        
+        @media (max-width: 768px) {
+            .analysis-grid {
+                grid-template-columns: 1fr;
+            }
+            .map-container {
+                height: 300px;
+            }
+        }
     </style>
 </head>
 <body>
@@ -212,26 +292,74 @@
             </div>
         </div>
 
-        <!-- Risk Predictions Section -->
+        <!-- Interactive Map Section -->
         <div class="section">
-            <h3>🎯 Risk Predictions</h3>
-            <p>High-risk areas identified through team data analysis</p>
-            <div id="predictionsLoading" class="loading" style="display: none;">
-                🔄 Analyzing team data for risk predictions...
+            <h3>🗺️ Interactive Hotspot Map</h3>
+            <p>Explore wildlife incident hotspots on the interactive map below. Zoom in/out to see detailed areas.</p>
+            
+            <div class="map-controls">
+                <button class="btn" onclick="resetMapView()" style="background: #3498db;">
+                    🏠 Reset Map View
+                </button>
+                <button class="btn" onclick="toggleHeatmap()" style="background: #e74c3c;">
+                    🔥 Toggle Heatmap
+                </button>
+                <span style="margin-left: 15px; font-size: 14px; color: #666;">
+                    🎯 Click on markers for details | 🔍 Use mouse wheel to zoom
+                </span>
             </div>
-            <div id="predictionsError" class="error" style="display: none;"></div>
-            <div id="predictionsResults"></div>
+            
+            <div class="map-container">
+                <div id="hotspotMap"></div>
+            </div>
+            
+            <div class="map-legend">
+                <h4 style="margin: 0 0 10px 0; font-size: 14px;">Animal Legend</h4>
+                <div class="legend-item">
+                    <div class="legend-color icon-elephant"></div>
+                    <span>Elephant</span>
+                </div>
+                <div class="legend-item">
+                    <div class="legend-color icon-lion"></div>
+                    <span>Lion</span>
+                </div>
+                <div class="legend-item">
+                    <div class="legend-color icon-leopard"></div>
+                    <span>Leopard</span>
+                </div>
+                <div class="legend-item">
+                    <div class="legend-color icon-giraffe"></div>
+                    <span>Giraffe</span>
+                </div>
+                <div class="legend-item">
+                    <div class="legend-color icon-other"></div>
+                    <span>Other Species</span>
+                </div>
+            </div>
         </div>
 
-        <!-- Hotspots Section -->
-        <div class="section">
-            <h3>🔥 Incident Hotspots</h3>
-            <p>Areas with high incident concentration from team reports</p>
-            <div id="hotspotsLoading" class="loading" style="display: none;">
-                🔄 Identifying hotspots from team data...
+        <div class="analysis-grid">
+            <!-- Risk Predictions Section -->
+            <div class="section">
+                <h3>🎯 Risk Predictions</h3>
+                <p>High-risk areas identified through team data analysis</p>
+                <div id="predictionsLoading" class="loading" style="display: none;">
+                    🔄 Analyzing team data for risk predictions...
+                </div>
+                <div id="predictionsError" class="error" style="display: none;"></div>
+                <div id="predictionsResults"></div>
             </div>
-            <div id="hotspotsError" class="error" style="display: none;"></div>
-            <div id="hotspotsResults"></div>
+
+            <!-- Hotspots Section -->
+            <div class="section">
+                <h3>🔥 Incident Hotspots</h3>
+                <p>Areas with high incident concentration from team reports</p>
+                <div id="hotspotsLoading" class="loading" style="display: none;">
+                    🔄 Identifying hotspots from team data...
+                </div>
+                <div id="hotspotsError" class="error" style="display: none;"></div>
+                <div id="hotspotsResults"></div>
+            </div>
         </div>
 
         <!-- Data Source Info -->
@@ -239,11 +367,202 @@
             <h3>ℹ️ Data Source Information</h3>
             <p><strong>Team Collaboration:</strong> All predictions and hotspots are generated using combined data from all team members.</p>
             <p><strong>Real-time Analysis:</strong> Analysis updates automatically as team members report new incidents.</p>
-            <p><strong>Collaborative Insights:</strong> Better data = Better predictions. Encourage your team to report all incidents!</p>
+            <p><strong>Interactive Map:</strong> Zoom in/out and click on markers to see detailed incident information.</p>
         </div>
     </div>
 
+    <!-- Leaflet JavaScript -->
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+    
     <script>
+        // Initialize the map
+        let map = L.map('hotspotMap').setView([-3.557359, 37.784127], 6); // Default center (Tanzania)
+        let heatmapLayer = null;
+        let heatmapEnabled = false;
+        
+        // Add base tile layer
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            attribution: '© OpenStreetMap contributors',
+            maxZoom: 18
+        }).addTo(map);
+        
+        // Add satellite layer option
+        let satelliteLayer = L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
+            attribution: '© Esri',
+            maxZoom: 18
+        });
+        
+        // Add layer control
+        let baseMaps = {
+            "Street Map": L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+                attribution: '© OpenStreetMap contributors',
+                maxZoom: 18
+            }),
+            "Satellite": satelliteLayer
+        };
+        
+        L.control.layers(baseMaps).addTo(map);
+        
+        // Marker cluster group
+        let markers = L.markerClusterGroup({
+            maxClusterRadius: 50,
+            spiderfyOnMaxZoom: true,
+            showCoverageOnHover: true,
+            zoomToBoundsOnClick: true
+        });
+        map.addLayer(markers);
+        
+        // Function to get icon based on species
+        function getAnimalIcon(species, severity) {
+            const speciesIcons = {
+                'elephant': 'icon-elephant',
+                'lion': 'icon-lion',
+                'leopard': 'icon-leopard',
+                'giraffe': 'icon-giraffe',
+                'zebra': 'icon-zebra',
+                'buffalo': 'icon-buffalo',
+                'rhino': 'icon-rhino',
+                'hippo': 'icon-hippo'
+            };
+            
+            const iconClass = speciesIcons[species.toLowerCase()] || 'icon-other';
+            const severityColor = severity === 'High' ? '#e74c3c' : severity === 'Medium' ? '#f39c12' : '#27ae60';
+            
+            return L.divIcon({
+                className: 'animal-marker',
+                html: `<div style="
+                    background: ${severityColor}; 
+                    width: 25px; 
+                    height: 25px; 
+                    border-radius: 50%; 
+                    border: 3px solid white;
+                    box-shadow: 0 2px 5px rgba(0,0,0,0.3);
+                    display: flex;
+                    align-items: center;
+                    justify-content: center;
+                    color: white;
+                    font-weight: bold;
+                    font-size: 12px;
+                ">${species.charAt(0)}</div>`,
+                iconSize: [25, 25],
+                iconAnchor: [12, 12]
+            });
+        }
+        
+        // Function to add incidents to map
+        function addIncidentsToMap(incidents) {
+            markers.clearLayers();
+            
+            incidents.forEach(incident => {
+                const marker = L.marker([incident.latitude, incident.longitude], {
+                    icon: getAnimalIcon(incident.species, incident.severity)
+                });
+                
+                const popupContent = `
+                    <div style="min-width: 200px;">
+                        <h4 style="margin: 0 0 10px 0; color: #2c3e50;">${incident.species} Incident</h4>
+                        <p><strong>Type:</strong> ${incident.incident_type}</p>
+                        <p><strong>Severity:</strong> <span style="color: ${incident.severity === 'High' ? '#e74c3c' : incident.severity === 'Medium' ? '#f39c12' : '#27ae60'}">${incident.severity}</span></p>
+                        <p><strong>Date:</strong> ${new Date(incident.date).toLocaleDateString()}</p>
+                        <p><strong>Location:</strong> ${incident.latitude.toFixed(4)}, ${incident.longitude.toFixed(4)}</p>
+                        ${incident.description ? `<p><strong>Description:</strong> ${incident.description}</p>` : ''}
+                        <p><strong>Reported by:</strong> ${incident.reported_by}</p>
+                    </div>
+                `;
+                
+                marker.bindPopup(popupContent);
+                markers.addLayer(marker);
+            });
+            
+            // Fit map to show all markers
+            if (incidents.length > 0) {
+                const group = new L.featureGroup(markers.getLayers());
+                map.fitBounds(group.getBounds().pad(0.1));
+            }
+        }
+        
+        // Function to add hotspots to map
+        function addHotspotsToMap(hotspots) {
+            hotspots.forEach(hotspot => {
+                // Add circle for hotspot area
+                const circle = L.circle([hotspot.center_lat, hotspot.center_lng], {
+                    color: '#e74c3c',
+                    fillColor: '#e74c3c',
+                    fillOpacity: 0.2,
+                    radius: 5000 // 5km radius
+                }).addTo(map);
+                
+                // Add marker for hotspot center
+                const marker = L.marker([hotspot.center_lat, hotspot.center_lng], {
+                    icon: L.divIcon({
+                        className: 'hotspot-marker',
+                        html: `<div style="
+                            background: #e74c3c; 
+                            width: 30px; 
+                            height: 30px; 
+                            border-radius: 50%; 
+                            border: 3px solid white;
+                            box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+                            display: flex;
+                            align-items: center;
+                            justify-content: center;
+                            color: white;
+                            font-weight: bold;
+                            font-size: 14px;
+                        ">🔥</div>`,
+                        iconSize: [30, 30],
+                        iconAnchor: [15, 15]
+                    })
+                });
+                
+                const popupContent = `
+                    <div style="min-width: 200px;">
+                        <h4 style="margin: 0 0 10px 0; color: #e74c3c;">${hotspot.name}</h4>
+                        <p><strong>Incident Count:</strong> ${hotspot.incident_count}</p>
+                        <p><strong>Main Species:</strong> ${hotspot.main_species.join(', ')}</p>
+                        <p><strong>Center:</strong> ${hotspot.center_lat.toFixed(4)}, ${hotspot.center_lng.toFixed(4)}</p>
+                        <p style="font-size: 12px; color: #666;">Hotspot radius: 5km</p>
+                    </div>
+                `;
+                
+                marker.bindPopup(popupContent);
+                map.addLayer(marker);
+            });
+        }
+        
+        // Toggle heatmap view
+        function toggleHeatmap() {
+            if (heatmapEnabled) {
+                if (heatmapLayer) {
+                    map.removeLayer(heatmapLayer);
+                }
+                heatmapEnabled = false;
+            } else {
+                // Simple heatmap simulation using circles
+                heatmapLayer = L.layerGroup();
+                markers.getLayers().forEach(marker => {
+                    const latlng = marker.getLatLng();
+                    const circle = L.circle(latlng, {
+                        color: 'red',
+                        fillColor: 'red',
+                        fillOpacity: 0.3,
+                        radius: 2000
+                    });
+                    heatmapLayer.addLayer(circle);
+                });
+                map.addLayer(heatmapLayer);
+                heatmapEnabled = true;
+            }
+        }
+        
+        // Reset map view
+        function resetMapView() {
+            map.setView([-3.557359, 37.784127], 6);
+            if (heatmapEnabled) {
+                toggleHeatmap();
+            }
+        }
+        
         // Load team statistics
         async function loadTeamStatistics() {
             try {
@@ -305,6 +624,7 @@
 
                 if (response.ok) {
                     displayHotspots(result);
+                    addHotspotsToMap(result.hotspots);
                 } else {
                     errorEl.textContent = result.error;
                     errorEl.style.display = 'block';
@@ -321,6 +641,17 @@
         async function generateBoth() {
             await generatePredictions();
             await generateHotspots();
+            
+            // Also load all incidents for the map
+            try {
+                const response = await fetch('/api/incidents');
+                const result = await response.json();
+                if (response.ok) {
+                    addIncidentsToMap(result.incidents);
+                }
+            } catch (error) {
+                console.error('Error loading incidents for map:', error);
+            }
         }
 
         // Display predictions
@@ -352,6 +683,9 @@
                         <span class="coordinates">${prediction.latitude}, ${prediction.longitude}</span>
                     </p>
                     <p><strong>Reason:</strong> ${prediction.reason}</p>
+                    <button class="btn" onclick="map.setView([${prediction.latitude}, ${prediction.longitude}], 12)" style="padding: 5px 10px; font-size: 12px; margin-top: 8px;">
+                        🗺️ View on Map
+                    </button>
                 </div>`;
             });
 
@@ -381,13 +715,16 @@
                     <p><strong>Main Species:</strong> 
                         ${hotspot.main_species.map(species => `<span class="species-tag">${species}</span>`).join('')}
                     </p>
+                    <button class="btn" onclick="map.setView([${hotspot.center_lat}, ${hotspot.center_lng}], 10)" style="padding: 5px 10px; font-size: 12px; margin-top: 8px;">
+                        🗺️ View on Map
+                    </button>
                 </div>`;
             });
 
             resultsEl.innerHTML = html;
         }
 
-        // Load statistics when page loads
+        // Load statistics and initial data when page loads
         document.addEventListener('DOMContentLoaded', function() {
             loadTeamStatistics();
             
