@@ -13,11 +13,14 @@ logger = logging.getLogger(__name__)
 
 app = Flask(__name__)
 
-# Configuration
+# Configuration - Support for production database
 app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', secrets.token_hex(32))
-app.config['SQLALCHEMY_DATABASE_URI'] = os.environ.get('DATABASE_URL', 'sqlite:///wildlife.db')
-if app.config['SQLALCHEMY_DATABASE_URI'].startswith('postgres://'):
-    app.config['SQLALCHEMY_DATABASE_URI'] = app.config['SQLALCHEMY_DATABASE_URI'].replace('postgres://', 'postgresql://', 1)
+
+# Database configuration with production support
+database_url = os.environ.get('DATABASE_URL', 'sqlite:///wildlife.db')
+if database_url.startswith('postgres://'):
+    database_url = database_url.replace('postgres://', 'postgresql://', 1)
+app.config['SQLALCHEMY_DATABASE_URI'] = database_url
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 app.config['PERMANENT_SESSION_LIFETIME'] = timedelta(days=30)
 app.config['JSONIFY_PRETTYPRINT_REGULAR'] = False
@@ -32,6 +35,21 @@ class User(db.Model):
     verified = db.Column(db.Boolean, default=True)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     last_login = db.Column(db.DateTime, default=datetime.utcnow)
+
+    @property
+    def is_authenticated(self):
+        return True
+
+    @property
+    def is_active(self):
+        return True
+
+    @property
+    def is_anonymous(self):
+        return False
+
+    def get_id(self):
+        return str(self.id)
 
 class Incident(db.Model):
     id = db.Column(db.Integer, primary_key=True)
@@ -77,6 +95,7 @@ def get_user_incidents(user):
 def init_db():
     with app.app_context():
         try:
+            # Create all tables
             db.create_all()
             logger.info("Database tables created successfully")
             
@@ -88,8 +107,16 @@ def init_db():
                 db.session.commit()
                 logger.info("Guest user created successfully")
                 
+            logger.info(f"Database initialized successfully at: {app.config['SQLALCHEMY_DATABASE_URI']}")
+            
         except Exception as e:
             logger.error(f"Database initialization error: {str(e)}")
+            # Fallback to SQLite if production DB fails
+            if not app.config['SQLALCHEMY_DATABASE_URI'].startswith('sqlite'):
+                logger.info("Falling back to SQLite database")
+                app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///wildlife.db'
+                db.init_app(app)
+                db.create_all()
 
 # Routes
 @app.route('/')
@@ -98,7 +125,7 @@ def index():
     # If user is logged in, redirect to home, otherwise show landing page
     if user:
         return redirect(url_for('home'))
-    return render_template('home.html', user=user)
+    return render_template('index.html', user=user)
 
 @app.route('/home')
 def home():
@@ -205,7 +232,7 @@ def register():
             session.permanent = True
             
             flash('Registration successful! You have been automatically logged in.', 'success')
-            return redirect(url_for('home'))  # Redirect to home after registration
+            return redirect(url_for('home'))
             
         except Exception as e:
             db.session.rollback()
@@ -261,7 +288,7 @@ def logout():
     flash('Logged out successfully', 'success')
     return redirect(url_for('index'))
 
-# Debug route
+# Debug routes
 @app.route('/debug-session')
 def debug_session():
     user = get_current_user()
@@ -278,10 +305,22 @@ def debug_session():
         },
         'is_authenticated': user is not None,
         'total_users': User.query.count(),
-        'total_incidents': Incident.query.count() if user else 0
+        'total_incidents': Incident.query.count() if user else 0,
+        'database_url': app.config['SQLALCHEMY_DATABASE_URI'][:50] + '...' if len(app.config['SQLALCHEMY_DATABASE_URI']) > 50 else app.config['SQLALCHEMY_DATABASE_URI']
     }
     
     return jsonify(debug_info)
+
+@app.route('/debug-auth')
+def debug_auth():
+    user = get_current_user()
+    return jsonify({
+        'has_session': 'user_id' in session,
+        'session_user_id': session.get('user_id'),
+        'current_user': user.email if user else None,
+        'user_authenticated': user is not None,
+        'database_connected': db.session.is_active
+    })
 
 # API Routes
 @app.route('/api/incidents', methods=['GET'])
@@ -638,12 +677,33 @@ def internal_error(error):
 # Health check
 @app.route('/health')
 def health_check():
-    return jsonify({'status': 'healthy', 'timestamp': datetime.utcnow().isoformat()})
+    return jsonify({
+        'status': 'healthy', 
+        'timestamp': datetime.utcnow().isoformat(),
+        'database': 'connected' if db.session.is_active else 'disconnected'
+    })
+
+# Database status route
+@app.route('/db-status')
+def db_status():
+    try:
+        user_count = User.query.count()
+        incident_count = Incident.query.count()
+        return jsonify({
+            'status': 'healthy',
+            'users': user_count,
+            'incidents': incident_count,
+            'database_url': app.config['SQLALCHEMY_DATABASE_URI'][:50] + '...' if len(app.config['SQLALCHEMY_DATABASE_URI']) > 50 else app.config['SQLALCHEMY_DATABASE_URI']
+        })
+    except Exception as e:
+        return jsonify({'status': 'error', 'error': str(e)}), 500
 
 # Initialize database
 print("Starting Wildlife Incident Reporter...")
+print(f"Database URL: {app.config['SQLALCHEMY_DATABASE_URI']}")
 init_db()
 
 if __name__ == '__main__':
     port = int(os.environ.get('PORT', 5000))
-    app.run(host='0.0.0.0', port=port, debug=False)
+    debug_mode = os.environ.get('DEBUG', 'False').lower() == 'true'
+    app.run(host='0.0.0.0', port=port, debug=debug_mode)
