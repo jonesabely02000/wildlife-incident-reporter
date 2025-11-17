@@ -329,14 +329,14 @@
             );
         }
 
-        // Handle form submission
+        // Handle form submission - FIXED VERSION
         document.getElementById('incidentForm').addEventListener('submit', async function(e) {
             e.preventDefault();
             
             const submitBtn = this.querySelector('button[type="submit"]');
             const statusDiv = document.getElementById('formStatus');
             
-            // Get form data - ONLY fields that exist in the database model
+            // Get form data
             const formData = {
                 date: document.getElementById('date').value,
                 latitude: document.getElementById('latitude').value,
@@ -371,17 +371,12 @@
 
                 console.log('Response status:', response.status);
 
-                if (!response.ok) {
-                    const errorText = await response.text();
-                    console.error('Server error:', errorText);
-                    throw new Error(`Server responded with ${response.status}: ${errorText}`);
-                }
-
-                const result = await response.json();
-                console.log('Success result:', result);
-
                 if (response.ok) {
+                    const result = await response.json();
+                    console.log('Success result:', result);
+                    
                     statusDiv.innerHTML = `<div class="flash-success">✅ ${result.message} (ID: ${result.incident_id})</div>`;
+                    
                     // Reset form but keep date
                     document.getElementById('incidentForm').reset();
                     document.getElementById('date').value = new Date().toISOString().slice(0, 16);
@@ -391,13 +386,19 @@
                         window.location.href = '/view-incidents';
                     }, 2000);
                 } else {
-                    statusDiv.innerHTML = `<div class="flash-error">❌ ${result.error}</div>`;
+                    // Try to get error message
+                    try {
+                        const errorResult = await response.json();
+                        statusDiv.innerHTML = `<div class="flash-error">❌ ${errorResult.error}</div>`;
+                    } catch (parseError) {
+                        statusDiv.innerHTML = `<div class="flash-error">❌ Server error (${response.status}). Please try again.</div>`;
+                    }
                 }
             } catch (error) {
-                console.error('Error:', error);
-                statusDiv.innerHTML = `<div class="flash-error">❌ Error: ${error.message}. Please check your connection and try again.</div>`;
+                console.error('Network error:', error);
+                statusDiv.innerHTML = `<div class="flash-error">❌ Network error: ${error.message}. Please check your connection.</div>`;
                 
-                // Save to local storage for offline sync (simplified version)
+                // Save to local storage for offline sync
                 if (typeof(Storage) !== "undefined") {
                     try {
                         let pendingIncidents = JSON.parse(localStorage.getItem('pendingIncidents') || '[]');

@@ -1,520 +1,400 @@
 <!DOCTYPE html>
-<html lang="en">
+<html>
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Predictions & Hotspots - Wildlife Incident Reporter</title>
+    <title>Predictions & Hotspots</title>
     <style>
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-        }
-
         body {
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            font-family: Arial, sans-serif;
+            margin: 20px;
             background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
             min-height: 100vh;
-            padding: 20px;
+            color: #333;
         }
-
         .container {
+            background: rgba(255,255,255,0.95);
+            padding: 30px;
+            border-radius: 15px;
+            box-shadow: 0 0 20px rgba(0,0,0,0.3);
             max-width: 1200px;
             margin: 0 auto;
         }
-
-        .header {
-            background: white;
-            padding: 20px;
-            border-radius: 10px;
-            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        h1 {
+            text-align: center;
+            color: #2c3e50;
             margin-bottom: 20px;
         }
-
-        .header h1 {
-            color: #333;
-            margin-bottom: 10px;
+        nav {
+            text-align: center;
+            margin: 20px 0;
         }
-
-        .user-info {
-            color: #666;
-            font-size: 14px;
-        }
-
-        .nav {
-            display: flex;
-            gap: 10px;
-            margin-bottom: 20px;
-        }
-
-        .nav a {
-            background: white;
+        nav a {
+            margin: 0 10px;
             padding: 10px 20px;
-            text-decoration: none;
-            color: #333;
-            border-radius: 5px;
-            transition: all 0.3s ease;
-        }
-
-        .nav a:hover {
-            background: #667eea;
+            font-weight: bold;
             color: white;
+            text-decoration: none;
+            background: #3498db;
+            border-radius: 5px;
+            transition: background 0.3s;
         }
-
-        .content-grid {
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 20px;
+        nav a:hover {
+            background: #2980b9;
         }
-
-        .card {
-            background: white;
+        .section {
+            background: #f8f9fa;
             padding: 25px;
             border-radius: 10px;
-            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            margin: 25px 0;
+            border-left: 4px solid #3498db;
         }
-
-        .import-section {
-            border-left: 4px solid #4CAF50;
-            background: #f8f9fa;
+        .team-stats {
+            background: #e8f4f8;
+            padding: 20px;
+            border-radius: 8px;
+            margin: 20px 0;
+            text-align: center;
         }
-
-        .predictions-section {
-            border-left: 4px solid #2196F3;
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 15px;
+            margin: 20px 0;
         }
-
-        .hotspots-section {
-            border-left: 4px solid #FF9800;
+        .stat-card {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            text-align: center;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
         }
-
-        .stats-section {
-            border-left: 4px solid #9C27B0;
+        .stat-number {
+            font-size: 2em;
+            font-weight: bold;
+            color: #2c3e50;
+            margin-bottom: 5px;
         }
-
-        h2 {
-            color: #333;
-            margin-bottom: 15px;
-            font-size: 1.4em;
+        .stat-label {
+            color: #666;
+            font-size: 0.9em;
         }
-
-        h3 {
-            color: #555;
-            margin-bottom: 10px;
-            font-size: 1.2em;
+        .prediction-card, .hotspot-card {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            margin: 15px 0;
+            border-left: 4px solid;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
         }
-
-        input[type="file"] {
-            width: 100%;
-            padding: 10px;
-            margin: 10px 0;
-            border: 1px solid #ddd;
-            border-radius: 5px;
-        }
-
-        button {
-            background: #4CAF50;
+        .risk-high { border-left-color: #e74c3c; }
+        .risk-medium { border-left-color: #f39c12; }
+        .risk-low { border-left-color: #27ae60; }
+        .btn {
+            background: #27ae60;
             color: white;
-            padding: 12px 24px;
+            padding: 12px 25px;
             border: none;
             border-radius: 5px;
             cursor: pointer;
             font-size: 16px;
-            transition: all 0.3s ease;
+            margin: 10px 5px;
+            transition: background 0.3s;
         }
-
-        button:hover {
-            background: #45a049;
-            transform: translateY(-2px);
+        .btn:hover {
+            background: #219a52;
         }
-
-        button:disabled {
-            background: #cccccc;
-            cursor: not-allowed;
-            transform: none;
+        .btn-analysis {
+            background: #9b59b6;
         }
-
-        #importStatus, #predictionResults, #hotspotResults {
-            margin-top: 15px;
-            padding: 15px;
-            border-radius: 5px;
-            min-height: 50px;
+        .btn-analysis:hover {
+            background: #8e44ad;
         }
-
-        .success {
-            background: #e8f5e8;
-            color: #2e7d32;
-            border: 1px solid #c8e6c9;
-        }
-
-        .error {
-            background: #ffebee;
-            color: #d32f2f;
-            border: 1px solid #ffcdd2;
-        }
-
-        .info {
-            background: #e3f2fd;
-            color: #1976d2;
-            border: 1px solid #bbdefb;
-        }
-
-        .warning {
-            background: #fff3e0;
-            color: #f57c00;
-            border: 1px solid #ffe0b2;
-        }
-
-        .stats-grid {
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 15px;
-            margin-top: 15px;
-        }
-
-        .stat-card {
-            background: #f5f5f5;
-            padding: 15px;
-            border-radius: 5px;
-            text-align: center;
-        }
-
-        .stat-number {
-            font-size: 24px;
-            font-weight: bold;
-            color: #667eea;
-        }
-
-        .stat-label {
-            font-size: 12px;
-            color: #666;
-            margin-top: 5px;
-        }
-
         .loading {
             text-align: center;
+            padding: 20px;
             color: #666;
         }
-
-        .loading::after {
-            content: '...';
-            animation: dots 1.5s steps(4, end) infinite;
-        }
-
-        @keyframes dots {
-            0%, 20% { color: rgba(0,0,0,0); text-shadow: .25em 0 0 rgba(0,0,0,0), .5em 0 0 rgba(0,0,0,0); }
-            40% { color: #666; text-shadow: .25em 0 0 rgba(0,0,0,0), .5em 0 0 rgba(0,0,0,0); }
-            60% { text-shadow: .25em 0 0 #666, .5em 0 0 rgba(0,0,0,0); }
-            80%, 100% { text-shadow: .25em 0 0 #666, .5em 0 0 #666; }
-        }
-
-        .hotspot-item, .prediction-item {
-            background: #f8f9fa;
-            margin: 10px 0;
+        .error {
+            background: #f8d7da;
+            color: #721c24;
             padding: 15px;
             border-radius: 5px;
-            border-left: 4px solid #FF9800;
+            margin: 10px 0;
         }
-
-        .prediction-item {
-            border-left-color: #2196F3;
+        .success {
+            background: #d4edda;
+            color: #155724;
+            padding: 15px;
+            border-radius: 5px;
+            margin: 10px 0;
         }
-
         .coordinates {
             font-family: monospace;
-            background: #e9ecef;
-            padding: 2px 6px;
+            background: #f8f9fa;
+            padding: 5px 10px;
             border-radius: 3px;
-            font-size: 12px;
+            font-size: 0.9em;
         }
-
-        .risk-high { color: #d32f2f; font-weight: bold; }
-        .risk-medium { color: #f57c00; font-weight: bold; }
-        .risk-low { color: #689f38; font-weight: bold; }
-
-        @media (max-width: 768px) {
-            .content-grid {
-                grid-template-columns: 1fr;
-            }
-            
-            .stats-grid {
-                grid-template-columns: 1fr;
-            }
+        .badge {
+            display: inline-block;
+            padding: 3px 8px;
+            border-radius: 12px;
+            font-size: 0.8em;
+            font-weight: bold;
+            margin: 2px;
+        }
+        .badge-high { background: #e74c3c; color: white; }
+        .badge-medium { background: #f39c12; color: white; }
+        .badge-low { background: #27ae60; color: white; }
+        .species-tag {
+            background: #3498db;
+            color: white;
+            padding: 2px 8px;
+            border-radius: 10px;
+            font-size: 0.8em;
+            margin: 2px;
+            display: inline-block;
         }
     </style>
 </head>
 <body>
     <div class="container">
-        <div class="header">
-            <h1>🐾 Wildlife Incident Reporter</h1>
-            <div class="user-info">
-                Welcome, {{ user.email }}! | 
-                {% if user.verified %}
-                    <strong style="color: #28a745;">✓ Verified</strong>
-                {% else %}
-                    <a href="{{ url_for('verify_manual') }}" style="color: #dc3545;">❌ Not Verified</a>
-                {% endif %}
-                | <a href="{{ url_for('logout') }}" style="color: #667eea;">Logout</a>
+        <h1>🔮 Predictions & Hotspots Analysis</h1>
+        
+        <nav>
+            <a href="/">🏠 Home</a>
+            <a href="{{ url_for('report_incident') }}">📝 Report Incident</a>
+            <a href="{{ url_for('view_incidents') }}">📊 View Incidents</a>
+            {% if user and user.is_authenticated %}
+                <a href="/logout">🚪 Logout</a>
+            {% else %}
+                <a href="/login">🔐 Login</a>
+            {% endif %}
+        </nav>
+
+        <!-- Team Statistics -->
+        <div class="team-stats">
+            <h3>👥 Team Collaboration Dashboard</h3>
+            <p>Analysis based on combined data from all team members</p>
+            <div class="stats-grid" id="teamStats">
+                <div class="stat-card">
+                    <div class="stat-number" id="teamIncidents">0</div>
+                    <div class="stat-label">Total Team Incidents</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-number" id="teamMembers">0</div>
+                    <div class="stat-label">Team Members</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-number" id="teamHighRisk">0</div>
+                    <div class="stat-label">High Severity Incidents</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-number" id="teamCoverage">0%</div>
+                    <div class="stat-label">Data Coverage</div>
+                </div>
             </div>
         </div>
 
-        <div class="nav">
-            <a href="{{ url_for('home') }}">Home</a>
-            <a href="{{ url_for('view_incidents') }}">View Incidents</a>
-            <a href="{{ url_for('report_incident') }}">Report Incident</a>
-            <a href="{{ url_for('predictions') }}" style="background: #667eea; color: white;">Predictions & Hotspots</a>
+        <!-- Analysis Controls -->
+        <div class="section">
+            <h3>📈 Generate Analysis</h3>
+            <p>Click below to generate predictions and hotspots using all team data:</p>
+            <div style="text-align: center; margin: 20px 0;">
+                <button class="btn btn-analysis" onclick="generatePredictions()">
+                    🎯 Generate Risk Predictions
+                </button>
+                <button class="btn btn-analysis" onclick="generateHotspots()">
+                    🔥 Identify Hotspots
+                </button>
+                <button class="btn" onclick="generateBoth()">
+                    🔄 Generate Complete Analysis
+                </button>
+            </div>
         </div>
 
-        <div class="content-grid">
-            <!-- Import Section -->
-            <div class="card import-section">
-                <h2>📤 Import Historical Data</h2>
-                <p>Upload your Excel file to populate the database with historical incident data for better predictions.</p>
-                
-                <div style="margin: 20px 0;">
-                    <input type="file" id="excelFile" accept=".csv">
-                    <br>
-                    <button onclick="importExcelData()" id="importBtn">Import Data</button>
-                </div>
-                
-                <div id="importStatus"></div>
-                
-                <div style="font-size: 12px; color: #666; margin-top: 15px; background: #e9ecef; padding: 10px; border-radius: 5px;">
-                    <strong>Expected columns:</strong><br>
-                    Date, Latitude, Longitude, Species, IncidentType, Severity, DistanceFromVillage_km
-                </div>
+        <!-- Risk Predictions Section -->
+        <div class="section">
+            <h3>🎯 Risk Predictions</h3>
+            <p>High-risk areas identified through team data analysis</p>
+            <div id="predictionsLoading" class="loading" style="display: none;">
+                🔄 Analyzing team data for risk predictions...
             </div>
+            <div id="predictionsError" class="error" style="display: none;"></div>
+            <div id="predictionsResults"></div>
+        </div>
 
-            <!-- Predictions Section -->
-            <div class="card predictions-section">
-                <h2>🔮 Risk Predictions</h2>
-                <p>Get predictions for high-risk areas based on historical data patterns.</p>
-                
-                <button onclick="generatePredictions()" id="predictBtn" style="background: #2196F3;">Generate Predictions</button>
-                
-                <div id="predictionResults">
-                    <div class="info">No predictions generated yet. Click the button above to generate risk predictions.</div>
-                </div>
+        <!-- Hotspots Section -->
+        <div class="section">
+            <h3>🔥 Incident Hotspots</h3>
+            <p>Areas with high incident concentration from team reports</p>
+            <div id="hotspotsLoading" class="loading" style="display: none;">
+                🔄 Identifying hotspots from team data...
             </div>
+            <div id="hotspotsError" class="error" style="display: none;"></div>
+            <div id="hotspotsResults"></div>
+        </div>
 
-            <!-- Hotspots Section -->
-            <div class="card hotspots-section">
-                <h2>📍 Incident Hotspots</h2>
-                <p>Identify areas with high incident concentration.</p>
-                
-                <button onclick="generateHotspots()" id="hotspotBtn" style="background: #FF9800;">Generate Hotspots</button>
-                
-                <div id="hotspotResults">
-                    <div class="info">No hotspots generated yet. Click the button above to identify incident hotspots.</div>
-                </div>
-            </div>
-
-            <!-- Statistics Section -->
-            <div class="card stats-section">
-                <h2>📊 Data Statistics</h2>
-                <p>Overview of your incident data and prediction capabilities.</p>
-                
-                <button onclick="loadStatistics()" id="statsBtn" style="background: #9C27B0;">Refresh Statistics</button>
-                
-                <div id="statisticsResults">
-                    <div class="stats-grid">
-                        <div class="stat-card">
-                            <div class="stat-number" id="totalIncidents">0</div>
-                            <div class="stat-label">Total Incidents</div>
-                        </div>
-                        <div class="stat-card">
-                            <div class="stat-number" id="importedIncidents">0</div>
-                            <div class="stat-label">Imported Data</div>
-                        </div>
-                        <div class="stat-card">
-                            <div class="stat-number" id="highRiskAreas">0</div>
-                            <div class="stat-label">High Risk Areas</div>
-                        </div>
-                        <div class="stat-card">
-                            <div class="stat-number" id="dataCoverage">0%</div>
-                            <div class="stat-label">Data Coverage</div>
-                        </div>
-                    </div>
-                </div>
-            </div>
+        <!-- Data Source Info -->
+        <div class="section" style="background: #e8f5e8; border-left-color: #27ae60;">
+            <h3>ℹ️ Data Source Information</h3>
+            <p><strong>Team Collaboration:</strong> All predictions and hotspots are generated using combined data from all team members.</p>
+            <p><strong>Real-time Analysis:</strong> Analysis updates automatically as team members report new incidents.</p>
+            <p><strong>Collaborative Insights:</strong> Better data = Better predictions. Encourage your team to report all incidents!</p>
         </div>
     </div>
 
     <script>
-        // Import Excel Data
-        async function importExcelData() {
-            const fileInput = document.getElementById('excelFile');
-            const file = fileInput.files[0];
-            const statusDiv = document.getElementById('importStatus');
-            const importBtn = document.getElementById('importBtn');
-            
-            if (!file) {
-                statusDiv.innerHTML = '<div class="error">❌ Please select a CSV file first</div>';
-                return;
-            }
-
-            // Validate file type
-            if (!file.name.toLowerCase().endsWith('.csv')) {
-                statusDiv.innerHTML = '<div class="error">❌ Please select a valid CSV file</div>';
-                return;
-            }
-
-            statusDiv.innerHTML = '<div class="info">⏳ Uploading and processing file... Please wait.</div>';
-            importBtn.disabled = true;
-            importBtn.textContent = 'Importing...';
-
+        // Load team statistics
+        async function loadTeamStatistics() {
             try {
-                const formData = new FormData();
-                formData.append('file', file);
-
-                const response = await fetch('/api/import-incidents', {
-                    method: 'POST',
-                    body: formData
-                });
-
+                const response = await fetch('/api/statistics');
                 const result = await response.json();
 
                 if (response.ok) {
-                    statusDiv.innerHTML = `<div class="success">
-                        ✅ Successfully imported ${result.imported} incidents!<br>
-                        <small>Total rows processed: ${result.total_rows}</small>
-                        ${result.errors && result.errors.length > 0 ? 
-                            `<br><small class="warning">⚠️ ${result.errors.length} rows had errors</small>` : ''}
-                    </div>`;
-                    
-                    // Refresh statistics after import
-                    setTimeout(loadStatistics, 1000);
-                    
-                } else {
-                    throw new Error(result.error || 'Import failed');
+                    document.getElementById('teamIncidents').textContent = result.team_total_incidents;
+                    document.getElementById('teamMembers').textContent = result.team_members;
+                    document.getElementById('teamHighRisk').textContent = result.team_high_severity;
+                    document.getElementById('teamCoverage').textContent = result.team_data_coverage + '%';
                 }
             } catch (error) {
-                console.error('Import error:', error);
-                statusDiv.innerHTML = `<div class="error">❌ Error importing data: ${error.message}</div>`;
-            } finally {
-                importBtn.disabled = false;
-                importBtn.textContent = 'Import Data';
+                console.error('Error loading team statistics:', error);
             }
         }
 
-        // Generate Predictions
+        // Generate predictions
         async function generatePredictions() {
-            const resultsDiv = document.getElementById('predictionResults');
-            const predictBtn = document.getElementById('predictBtn');
-            
-            resultsDiv.innerHTML = '<div class="info loading">Generating predictions</div>';
-            predictBtn.disabled = true;
-            predictBtn.textContent = 'Generating...';
+            const loadingEl = document.getElementById('predictionsLoading');
+            const errorEl = document.getElementById('predictionsError');
+            const resultsEl = document.getElementById('predictionsResults');
+
+            loadingEl.style.display = 'block';
+            errorEl.style.display = 'none';
+            resultsEl.innerHTML = '';
 
             try {
                 const response = await fetch('/api/generate-predictions');
                 const result = await response.json();
 
                 if (response.ok) {
-                    let html = '<div class="success">✅ Predictions generated successfully!</div>';
-                    
-                    if (result.predictions && result.predictions.length > 0) {
-                        result.predictions.forEach(prediction => {
-                            const riskClass = `risk-${prediction.risk_level.toLowerCase()}`;
-                            html += `
-                                <div class="prediction-item">
-                                    <strong>Area: </strong>${prediction.area_name}<br>
-                                    <strong>Risk Level: </strong><span class="${riskClass}">${prediction.risk_level}</span><br>
-                                    <strong>Coordinates: </strong><span class="coordinates">${prediction.latitude.toFixed(6)}, ${prediction.longitude.toFixed(6)}</span><br>
-                                    <strong>Reason: </strong>${prediction.reason}
-                                </div>
-                            `;
-                        });
-                    } else {
-                        html += '<div class="warning">No high-risk predictions found. Try importing more data.</div>';
-                    }
-                    
-                    resultsDiv.innerHTML = html;
+                    displayPredictions(result);
                 } else {
-                    throw new Error(result.error || 'Prediction generation failed');
+                    errorEl.textContent = result.error;
+                    errorEl.style.display = 'block';
                 }
             } catch (error) {
-                resultsDiv.innerHTML = `<div class="error">❌ Error generating predictions: ${error.message}</div>`;
+                errorEl.textContent = 'Network error. Please try again.';
+                errorEl.style.display = 'block';
             } finally {
-                predictBtn.disabled = false;
-                predictBtn.textContent = 'Generate Predictions';
+                loadingEl.style.display = 'none';
             }
         }
 
-        // Generate Hotspots
+        // Generate hotspots
         async function generateHotspots() {
-            const resultsDiv = document.getElementById('hotspotResults');
-            const hotspotBtn = document.getElementById('hotspotBtn');
-            
-            resultsDiv.innerHTML = '<div class="info loading">Identifying hotspots</div>';
-            hotspotBtn.disabled = true;
-            hotspotBtn.textContent = 'Generating...';
+            const loadingEl = document.getElementById('hotspotsLoading');
+            const errorEl = document.getElementById('hotspotsError');
+            const resultsEl = document.getElementById('hotspotsResults');
+
+            loadingEl.style.display = 'block';
+            errorEl.style.display = 'none';
+            resultsEl.innerHTML = '';
 
             try {
                 const response = await fetch('/api/generate-hotspots');
                 const result = await response.json();
 
                 if (response.ok) {
-                    let html = '<div class="success">✅ Hotspots identified successfully!</div>';
-                    
-                    if (result.hotspots && result.hotspots.length > 0) {
-                        result.hotspots.forEach(hotspot => {
-                            html += `
-                                <div class="hotspot-item">
-                                    <strong>Hotspot: </strong>${hotspot.name}<br>
-                                    <strong>Incident Count: </strong>${hotspot.incident_count} incidents<br>
-                                    <strong>Center: </strong><span class="coordinates">${hotspot.center_lat.toFixed(6)}, ${hotspot.center_lng.toFixed(6)}</span><br>
-                                    <strong>Radius: </strong>${hotspot.radius_km} km<br>
-                                    <strong>Main Species: </strong>${hotspot.main_species.join(', ')}
-                                </div>
-                            `;
-                        });
-                    } else {
-                        html += '<div class="warning">No hotspots found. Try importing more data.</div>';
-                    }
-                    
-                    resultsDiv.innerHTML = html;
+                    displayHotspots(result);
                 } else {
-                    throw new Error(result.error || 'Hotspot generation failed');
+                    errorEl.textContent = result.error;
+                    errorEl.style.display = 'block';
                 }
             } catch (error) {
-                resultsDiv.innerHTML = `<div class="error">❌ Error generating hotspots: ${error.message}</div>`;
+                errorEl.textContent = 'Network error. Please try again.';
+                errorEl.style.display = 'block';
             } finally {
-                hotspotBtn.disabled = false;
-                hotspotBtn.textContent = 'Generate Hotspots';
+                loadingEl.style.display = 'none';
             }
         }
 
-        // Load Statistics
-        async function loadStatistics() {
-            try {
-                const response = await fetch('/api/statistics');
-                const result = await response.json();
-
-                if (response.ok) {
-                    document.getElementById('totalIncidents').textContent = result.total_incidents;
-                    document.getElementById('importedIncidents').textContent = result.imported_incidents;
-                    document.getElementById('highRiskAreas').textContent = result.high_risk_areas;
-                    document.getElementById('dataCoverage').textContent = result.data_coverage + '%';
-                }
-            } catch (error) {
-                console.error('Error loading statistics:', error);
-            }
+        // Generate both analyses
+        async function generateBoth() {
+            await generatePredictions();
+            await generateHotspots();
         }
 
-        // File selection feedback
-        document.getElementById('excelFile').addEventListener('change', function(e) {
-            const statusDiv = document.getElementById('importStatus');
-            if (e.target.files.length > 0) {
-                statusDiv.innerHTML = `<div class="info">
-                    📄 File selected: ${e.target.files[0].name}<br>
-                    <small>Click "Import Data" to proceed</small>
+        // Display predictions
+        function displayPredictions(result) {
+            const resultsEl = document.getElementById('predictionsResults');
+            
+            if (!result.predictions || result.predictions.length === 0) {
+                resultsEl.innerHTML = '<div class="error">No predictions generated. Need more team data.</div>';
+                return;
+            }
+
+            let html = `<div class="success">
+                ✅ Generated ${result.predictions.length} risk predictions using ${result.total_incidents_used} team incidents
+            </div>`;
+
+            result.predictions.forEach(prediction => {
+                const riskClass = prediction.risk_level.includes('HIGH') ? 'risk-high' : 
+                                prediction.risk_level.includes('MEDIUM') ? 'risk-medium' : 'risk-low';
+                
+                const badgeClass = prediction.risk_level.includes('HIGH') ? 'badge-high' : 
+                                 prediction.risk_level.includes('MEDIUM') ? 'badge-medium' : 'badge-low';
+
+                html += `
+                <div class="prediction-card ${riskClass}">
+                    <h4>${prediction.area_name} 
+                        <span class="badge ${badgeClass}">${prediction.risk_level}</span>
+                    </h4>
+                    <p><strong>Location:</strong> 
+                        <span class="coordinates">${prediction.latitude}, ${prediction.longitude}</span>
+                    </p>
+                    <p><strong>Reason:</strong> ${prediction.reason}</p>
                 </div>`;
+            });
+
+            resultsEl.innerHTML = html;
+        }
+
+        // Display hotspots
+        function displayHotspots(result) {
+            const resultsEl = document.getElementById('hotspotsResults');
+            
+            if (!result.hotspots || result.hotspots.length === 0) {
+                resultsEl.innerHTML = '<div class="error">No hotspots identified. Need more team data.</div>';
+                return;
             }
-        });
+
+            let html = `<div class="success">
+                ✅ Identified ${result.hotspots.length} hotspots using ${result.total_incidents_used} team incidents
+            </div>`;
+
+            result.hotspots.forEach(hotspot => {
+                html += `
+                <div class="hotspot-card">
+                    <h4>${hotspot.name}</h4>
+                    <p><strong>Center Location:</strong> 
+                        <span class="coordinates">${hotspot.center_lat}, ${hotspot.center_lng}</span>
+                    </p>
+                    <p><strong>Main Species:</strong> 
+                        ${hotspot.main_species.map(species => `<span class="species-tag">${species}</span>`).join('')}
+                    </p>
+                </div>`;
+            });
+
+            resultsEl.innerHTML = html;
+        }
 
         // Load statistics when page loads
         document.addEventListener('DOMContentLoaded', function() {
-            loadStatistics();
+            loadTeamStatistics();
+            
+            // Auto-generate analysis if there's enough data
+            setTimeout(() => {
+                generateBoth();
+            }, 1000);
         });
     </script>
 </body>

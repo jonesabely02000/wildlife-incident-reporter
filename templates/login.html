@@ -1,152 +1,111 @@
 <!DOCTYPE html>
-<html lang="en">
+<html>
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Login - Wildlife Incident Reporter</title>
     <style>
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-        }
-
         body {
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 20px;
             background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
             min-height: 100vh;
             display: flex;
             align-items: center;
             justify-content: center;
-            padding: 20px;
         }
-
-        .login-container {
+        .container {
             background: white;
             padding: 40px;
             border-radius: 15px;
             box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
-            width: 100%;
             max-width: 400px;
+            width: 100%;
         }
-
-        .logo {
+        h1 {
             text-align: center;
-            margin-bottom: 30px;
-        }
-
-        .logo h1 {
-            color: #333;
-            font-size: 2em;
+            color: #2c3e50;
             margin-bottom: 10px;
         }
-
+        .subtitle {
+            text-align: center;
+            color: #666;
+            margin-bottom: 30px;
+        }
         .form-group {
             margin-bottom: 20px;
         }
-
         label {
             display: block;
             margin-bottom: 5px;
-            color: #333;
-            font-weight: 500;
+            font-weight: bold;
+            color: #2c3e50;
         }
-
-        input[type="email"],
-        input[type="password"] {
+        input {
             width: 100%;
             padding: 12px;
             border: 1px solid #ddd;
             border-radius: 5px;
             font-size: 16px;
-            transition: border-color 0.3s ease;
         }
-
-        input[type="email"]:focus,
-        input[type="password"]:focus {
-            outline: none;
-            border-color: #667eea;
-        }
-
         .btn {
             width: 100%;
             padding: 12px;
-            background: #667eea;
+            background: #3498db;
             color: white;
             border: none;
             border-radius: 5px;
             font-size: 16px;
             cursor: pointer;
-            transition: all 0.3s ease;
+            transition: background 0.3s;
         }
-
         .btn:hover {
-            background: #5a6fd8;
-            transform: translateY(-2px);
+            background: #2980b9;
         }
-
-        .btn-secondary {
-            background: #6c757d;
-            margin-top: 10px;
-        }
-
-        .btn-secondary:hover {
-            background: #5a6268;
-        }
-
         .links {
             text-align: center;
             margin-top: 20px;
         }
-
         .links a {
-            color: #667eea;
+            color: #3498db;
             text-decoration: none;
+            margin: 0 10px;
         }
-
         .links a:hover {
             text-decoration: underline;
         }
-
         .alert {
             padding: 10px;
-            margin-bottom: 20px;
             border-radius: 5px;
+            margin-bottom: 20px;
             text-align: center;
         }
-
-        .alert-error {
-            background: #f8d7da;
-            color: #721c24;
-            border: 1px solid #f5c6cb;
-        }
-
         .alert-success {
             background: #d4edda;
             color: #155724;
             border: 1px solid #c3e6cb;
         }
-
-        .guest-section {
-            margin-top: 30px;
-            padding-top: 20px;
-            border-top: 1px solid #eee;
-            text-align: center;
+        .alert-error {
+            background: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
         }
-
-        .guest-section p {
-            color: #666;
-            margin-bottom: 15px;
+        .guest-info {
+            background: #fff3cd;
+            padding: 15px;
+            border-radius: 5px;
+            margin: 20px 0;
+            text-align: center;
+            font-size: 14px;
+            color: #856404;
         }
     </style>
 </head>
 <body>
-    <div class="login-container">
-        <div class="logo">
-            <h1>🐾 Wildlife Reporter</h1>
-            <p>Login to your account</p>
-        </div>
+    <div class="container">
+        <h1>🔐 Login</h1>
+        <div class="subtitle">Access your Wildlife Incident Reporter account</div>
 
+        <!-- Flash Messages -->
         {% with messages = get_flashed_messages(with_categories=true) %}
             {% if messages %}
                 {% for category, message in messages %}
@@ -157,26 +116,40 @@
             {% endif %}
         {% endwith %}
 
-        <form method="POST" action="{{ url_for('login') }}">
+        <form method="POST">
             <div class="form-group">
-                <label for="email">Email Address</label>
-                <input type="email" id="email" name="email" required>
+                <label for="email">Email Address:</label>
+                <input type="email" id="email" name="email" required placeholder="Enter your email">
             </div>
 
             <div class="form-group">
-                <label for="password">Password</label>
-                <input type="password" id="password" name="password" required>
+                <label for="password">Password:</label>
+                <input type="password" id="password" name="password" required placeholder="Enter your password">
+            </div>
+
+            <div class="form-group" style="text-align: center; margin: 15px 0;">
+                <a href="{{ url_for('forgot_password') }}" style="color: #3498db; text-decoration: none; font-size: 14px;">
+                    🔑 Forgot your password?
+                </a>
             </div>
 
             <button type="submit" class="btn">Login</button>
         </form>
 
-        <div class="guest-section">
-            <p>Don't have an account?</p>
-            <a href="{{ url_for('login_guest') }}" class="btn btn-secondary">Login as Guest</a>
-            <div class="links" style="margin-top: 15px;">
-                <a href="{{ url_for('register') }}">Create new account</a>
-            </div>
+        <div class="guest-info">
+            <strong>Quick Access:</strong> Don't have an account? Use guest login for immediate access to all features.
+        </div>
+
+        <div class="links">
+            <a href="{{ url_for('login_guest') }}">🎭 Guest Login</a>
+            <a href="{{ url_for('register') }}">📝 Create Account</a>
+            <a href="{{ url_for('home') }}">🏠 Back to Home</a>
+        </div>
+
+        <div style="text-align: center; margin-top: 30px; padding: 15px; background: #f8f9fa; border-radius: 5px;">
+            <strong>Demo Account:</strong><br>
+            Email: guest@wildlife.com<br>
+            Password: guest123
         </div>
     </div>
 </body>
