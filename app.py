@@ -5,9 +5,7 @@ from datetime import datetime, timedelta
 import logging
 import csv
 from io import StringIO
-from collections import Counter
 import secrets
-import hashlib
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -15,21 +13,18 @@ logger = logging.getLogger(__name__)
 
 app = Flask(__name__)
 
-# Configuration - FIXED FOR PERSISTENT SESSIONS
+# Configuration
 app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', secrets.token_hex(32))
 app.config['SQLALCHEMY_DATABASE_URI'] = os.environ.get('DATABASE_URL', 'sqlite:///wildlife.db')
 if app.config['SQLALCHEMY_DATABASE_URI'].startswith('postgres://'):
     app.config['SQLALCHEMY_DATABASE_URI'] = app.config['SQLALCHEMY_DATABASE_URI'].replace('postgres://', 'postgresql://', 1)
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
-app.config['PERMANENT_SESSION_LIFETIME'] = timedelta(days=30)  # Extended to 30 days
-app.config['SQLALCHEMY_ENGINE_OPTIONS'] = {
-    'pool_recycle': 300,
-    'pool_pre_ping': True
-}
+app.config['PERMANENT_SESSION_LIFETIME'] = timedelta(days=30)
+app.config['JSONIFY_PRETTYPRINT_REGULAR'] = False
 
 db = SQLAlchemy(app)
 
-# Database Models - UPDATED FOR PASSWORD RECOVERY
+# Database Models
 class User(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     email = db.Column(db.String(120), unique=True, nullable=False)
@@ -37,25 +32,6 @@ class User(db.Model):
     verified = db.Column(db.Boolean, default=True)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
     last_login = db.Column(db.DateTime, default=datetime.utcnow)
-    
-    # Password recovery fields
-    reset_token = db.Column(db.String(100), unique=True)
-    reset_token_expiry = db.Column(db.DateTime)
-
-    @property
-    def is_authenticated(self):
-        return True
-
-    @property
-    def is_active(self):
-        return True
-
-    @property
-    def is_anonymous(self):
-        return False
-
-    def get_id(self):
-        return str(self.id)
 
 class Incident(db.Model):
     id = db.Column(db.Integer, primary_key=True)
@@ -69,19 +45,11 @@ class Incident(db.Model):
     reported_by = db.Column(db.String(120), nullable=False)
     created_at = db.Column(db.DateTime, default=datetime.utcnow)
 
-# Backup/Restore system for database persistence
-class DataBackup(db.Model):
-    id = db.Column(db.Integer, primary_key=True)
-    backup_type = db.Column(db.String(50), nullable=False)
-    data = db.Column(db.Text, nullable=False)
-    created_at = db.Column(db.DateTime, default=datetime.utcnow)
-
 # Helper Functions
 def get_current_user():
     if 'user_id' in session:
         user = User.query.get(session['user_id'])
         if user:
-            # Update last login time
             user.last_login = datetime.utcnow()
             db.session.commit()
             return user
@@ -98,123 +66,6 @@ def login_required(f):
         return f(*args, **kwargs)
     return decorated_function
 
-def create_backup():
-    """Create backup of important data"""
-    try:
-        # Backup users
-        users = User.query.all()
-        users_data = []
-        for user in users:
-            users_data.append({
-                'email': user.email,
-                'password': user.password,
-                'verified': user.verified,
-                'created_at': user.created_at.isoformat()
-            })
-        
-        # Backup incidents
-        incidents = Incident.query.all()
-        incidents_data = []
-        for incident in incidents:
-            incidents_data.append({
-                'date': incident.date.isoformat(),
-                'latitude': incident.latitude,
-                'longitude': incident.longitude,
-                'species': incident.species,
-                'incident_type': incident.incident_type,
-                'severity': incident.severity,
-                'description': incident.description,
-                'reported_by': incident.reported_by,
-                'created_at': incident.created_at.isoformat()
-            })
-        
-        # Save backups
-        user_backup = DataBackup(backup_type='users', data=str(users_data))
-        incident_backup = DataBackup(backup_type='incidents', data=str(incidents_data))
-        
-        db.session.add(user_backup)
-        db.session.add(incident_backup)
-        db.session.commit()
-        
-        logger.info("Backup created successfully")
-        return True
-    except Exception as e:
-        logger.error(f"Backup creation failed: {str(e)}")
-        return False
-
-def restore_from_backup():
-    """Restore data from backup if database was reset"""
-    try:
-        # Check if we need to restore
-        user_count = User.query.count()
-        incident_count = Incident.query.count()
-        
-        if user_count > 0 and incident_count > 0:
-            return True  # No restoration needed
-            
-        latest_users_backup = DataBackup.query.filter_by(backup_type='users').order_by(DataBackup.created_at.desc()).first()
-        latest_incidents_backup = DataBackup.query.filter_by(backup_type='incidents').order_by(DataBackup.created_at.desc()).first()
-        
-        if latest_users_backup:
-            # Restore users
-            users_data = eval(latest_users_backup.data)
-            for user_data in users_data:
-                if not User.query.filter_by(email=user_data['email']).first():
-                    user = User(
-                        email=user_data['email'],
-                        password=user_data['password'],
-                        verified=user_data['verified'],
-                        created_at=datetime.fromisoformat(user_data['created_at'])
-                    )
-                    db.session.add(user)
-            
-        if latest_incidents_backup:
-            # Restore incidents
-            incidents_data = eval(latest_incidents_backup.data)
-            for incident_data in incidents_data:
-                incident = Incident(
-                    date=datetime.fromisoformat(incident_data['date']),
-                    latitude=incident_data['latitude'],
-                    longitude=incident_data['longitude'],
-                    species=incident_data['species'],
-                    incident_type=incident_data['incident_type'],
-                    severity=incident_data['severity'],
-                    description=incident_data['description'],
-                    reported_by=incident_data['reported_by'],
-                    created_at=datetime.fromisoformat(incident_data['created_at'])
-                )
-                db.session.add(incident)
-        
-        db.session.commit()
-        logger.info("Data restored from backup successfully")
-        return True
-    except Exception as e:
-        logger.error(f"Restoration failed: {str(e)}")
-        return False
-
-def init_db():
-    with app.app_context():
-        try:
-            db.create_all()
-            logger.info("Database tables created successfully")
-            
-            # Restore from backup if needed
-            restore_from_backup()
-            
-            # Create guest user if doesn't exist
-            guest_email = "guest@wildlife.com"
-            if not User.query.filter_by(email=guest_email).first():
-                guest_user = User(email=guest_email, password="guest123", verified=True)
-                db.session.add(guest_user)
-                db.session.commit()
-                logger.info("Guest user created successfully")
-            
-            # Create backup
-            create_backup()
-                
-        except Exception as e:
-            logger.error(f"Database initialization error: {str(e)}")
-
 def get_all_incidents():
     """Get all incidents for team collaboration"""
     return Incident.query.order_by(Incident.date.desc()).all()
@@ -223,22 +74,24 @@ def get_user_incidents(user):
     """Get incidents for specific user"""
     return Incident.query.filter_by(reported_by=user.email).order_by(Incident.date.desc()).all()
 
-# Routes
-@app.before_request
-def before_request():
-    """Create session and backup before each request"""
-    session.permanent = True
-    app.permanent_session_lifetime = timedelta(days=30)
-    
-    # Create backup periodically (every 100 requests or so)
-    if hasattr(app, 'request_count'):
-        app.request_count += 1
-    else:
-        app.request_count = 1
-        
-    if app.request_count % 100 == 0:
-        create_backup()
+def init_db():
+    with app.app_context():
+        try:
+            db.create_all()
+            logger.info("Database tables created successfully")
+            
+            # Create guest user if doesn't exist
+            guest_email = "guest@wildlife.com"
+            if not User.query.filter_by(email=guest_email).first():
+                guest_user = User(email=guest_email, password="guest123", verified=True)
+                db.session.add(guest_user)
+                db.session.commit()
+                logger.info("Guest user created successfully")
+                
+        except Exception as e:
+            logger.error(f"Database initialization error: {str(e)}")
 
+# Routes
 @app.route('/')
 def index():
     user = get_current_user()
@@ -273,7 +126,6 @@ def predictions():
     user = get_current_user()
     return render_template('predictions.html', user=user)
 
-# Enhanced Auth Routes with Password Recovery
 @app.route('/login', methods=['GET', 'POST'])
 def login():
     if get_current_user():
@@ -289,7 +141,6 @@ def login():
             session['user_email'] = user.email
             session.permanent = True
             
-            # Update last login
             user.last_login = datetime.utcnow()
             db.session.commit()
             
@@ -340,9 +191,6 @@ def register():
             session['user_email'] = user.email
             session.permanent = True
             
-            # Create backup after new registration
-            create_backup()
-            
             flash('Registration successful!', 'success')
             return redirect(url_for('home'))
         except Exception as e:
@@ -351,7 +199,6 @@ def register():
     
     return render_template('register.html')
 
-# PASSWORD RECOVERY ROUTES
 @app.route('/forgot-password', methods=['GET', 'POST'])
 def forgot_password():
     if get_current_user():
@@ -362,28 +209,12 @@ def forgot_password():
         user = User.query.filter_by(email=email).first()
         
         if user:
-            # In a real app, you would send an email here
-            # For this demo, we'll just show the password
             flash(f'Password for {email}: {user.password}', 'success')
             return redirect(url_for('login'))
         else:
             flash('Email not found', 'error')
     
     return render_template('forgot_password.html')
-
-@app.route('/view-accounts')
-def view_accounts():
-    """Admin route to view all accounts (for demo purposes)"""
-    users = User.query.all()
-    accounts = []
-    for user in users:
-        accounts.append({
-            'email': user.email,
-            'password': user.password,
-            'created_at': user.created_at,
-            'last_login': user.last_login
-        })
-    return jsonify({'accounts': accounts})
 
 @app.route('/login-guest')
 def login_guest():
@@ -416,37 +247,368 @@ def logout():
     flash('Logged out successfully', 'success')
     return redirect(url_for('index'))
 
-# Database Management Routes
-@app.route('/admin/backup')
-def admin_backup():
-    """Manual backup trigger"""
-    if create_backup():
-        flash('Backup created successfully!', 'success')
-    else:
-        flash('Backup failed!', 'error')
-    return redirect(url_for('home'))
-
-@app.route('/admin/restore')
-def admin_restore():
-    """Manual restore trigger"""
-    if restore_from_backup():
-        flash('Data restored successfully!', 'success')
-    else:
-        flash('Restore failed!', 'error')
-    return redirect(url_for('home'))
-
-@app.route('/admin/stats')
-def admin_stats():
-    """Admin statistics"""
-    stats = {
+# Debug route
+@app.route('/debug-session')
+def debug_session():
+    user = get_current_user()
+    session_data = dict(session)
+    
+    safe_session = {k: v for k, v in session_data.items() if k not in ['_permanent']}
+    
+    debug_info = {
+        'session_data': safe_session,
+        'current_user': {
+            'id': user.id if user else None,
+            'email': user.email if user else None,
+            'verified': user.verified if user else None
+        },
+        'is_authenticated': user is not None,
         'total_users': User.query.count(),
-        'total_incidents': Incident.query.count(),
-        'latest_backup': DataBackup.query.order_by(DataBackup.created_at.desc()).first().created_at.isoformat() if DataBackup.query.first() else 'No backups',
-        'session_lifetime_days': 30
+        'total_incidents': Incident.query.count() if user else 0
     }
-    return jsonify(stats)
+    
+    return jsonify(debug_info)
 
-# ... (Keep all your existing API routes for incidents, predictions, hotspots, etc.)
+# API Routes
+@app.route('/api/incidents', methods=['GET'])
+@login_required
+def get_incidents():
+    try:
+        user = get_current_user()
+        incidents = get_user_incidents(user)
+        
+        incidents_data = []
+        for incident in incidents:
+            incidents_data.append({
+                'id': incident.id,
+                'date': incident.date.isoformat(),
+                'latitude': incident.latitude,
+                'longitude': incident.longitude,
+                'species': incident.species,
+                'incident_type': incident.incident_type,
+                'severity': incident.severity,
+                'description': incident.description,
+                'reported_by': incident.reported_by
+            })
+        
+        return jsonify({'incidents': incidents_data})
+    except Exception as e:
+        logger.error(f"Error in get_incidents: {str(e)}")
+        return jsonify({'error': 'Failed to load incidents'}), 500
+
+@app.route('/api/report-incident', methods=['POST'])
+@login_required
+def api_report_incident():
+    user = get_current_user()
+    
+    try:
+        # Get JSON data with proper error handling
+        if not request.is_json:
+            return jsonify({'error': 'Request must be JSON'}), 400
+            
+        data = request.get_json()
+        if not data:
+            return jsonify({'error': 'No JSON data received'}), 400
+        
+        logger.info(f"Received incident data: {data}")
+        
+        # Validate required fields
+        required_fields = ['date', 'latitude', 'longitude', 'species', 'incident_type', 'severity']
+        missing_fields = [field for field in required_fields if field not in data or not data[field]]
+        
+        if missing_fields:
+            return jsonify({'error': f'Missing required fields: {", ".join(missing_fields)}'}), 400
+        
+        # Parse date with multiple format support
+        date_str = data['date']
+        try:
+            if 'T' in date_str:
+                incident_date = datetime.fromisoformat(date_str.replace('Z', '+00:00'))
+            else:
+                incident_date = datetime.fromisoformat(date_str)
+        except ValueError:
+            try:
+                incident_date = datetime.strptime(date_str, '%Y-%m-%d %H:%M:%S')
+            except ValueError:
+                try:
+                    incident_date = datetime.strptime(date_str, '%Y-%m-%d')
+                except ValueError:
+                    return jsonify({'error': 'Invalid date format. Use YYYY-MM-DD or YYYY-MM-DD HH:MM:SS'}), 400
+        
+        # Create incident
+        incident = Incident(
+            date=incident_date,
+            latitude=float(data['latitude']),
+            longitude=float(data['longitude']),
+            species=data['species'],
+            incident_type=data['incident_type'],
+            severity=data['severity'],
+            description=data.get('description', ''),
+            reported_by=user.email
+        )
+        
+        db.session.add(incident)
+        db.session.commit()
+        
+        response_data = {
+            'message': 'Incident reported successfully',
+            'incident_id': incident.id
+        }
+        
+        logger.info(f"Incident saved successfully: {incident.id}")
+        return jsonify(response_data), 201
+        
+    except Exception as e:
+        db.session.rollback()
+        logger.error(f"Error reporting incident: {str(e)}")
+        return jsonify({'error': f'Failed to report incident: {str(e)}'}), 500
+
+@app.route('/api/import-incidents', methods=['POST'])
+@login_required
+def import_incidents():
+    user = get_current_user()
+    
+    try:
+        if 'file' not in request.files:
+            return jsonify({'error': 'No file uploaded'}), 400
+        
+        file = request.files['file']
+        if file.filename == '':
+            return jsonify({'error': 'No file selected'}), 400
+        
+        if not file.filename.endswith('.csv'):
+            return jsonify({'error': 'Invalid file format. Please upload a CSV file.'}), 400
+        
+        # Read and decode CSV file
+        file_content = file.stream.read().decode('UTF-8')
+        stream = StringIO(file_content)
+        
+        # Detect CSV dialect
+        sample = file_content[:1024]
+        sniffer = csv.Sniffer()
+        dialect = sniffer.sniff(sample)
+        
+        csv_reader = csv.DictReader(stream, dialect=dialect)
+        imported_count = 0
+        errors = []
+        
+        for row_num, row in enumerate(csv_reader, 2):
+            try:
+                # Flexible column name matching
+                date_str = (row.get('Date') or row.get('date') or 
+                           row.get('Incident Date') or row.get('incident_date'))
+                latitude = (row.get('Latitude') or row.get('latitude') or 
+                           row.get('Lat') or row.get('lat'))
+                longitude = (row.get('Longitude') or row.get('longitude') or 
+                            row.get('Lon') or row.get('lon') or row.get('Lng') or row.get('lng'))
+                species = (row.get('Species') or row.get('species') or 
+                          row.get('Animal') or row.get('animal'))
+                incident_type = (row.get('IncidentType') or row.get('Incident Type') or 
+                               row.get('incident_type') or row.get('Type') or row.get('type'))
+                severity = (row.get('Severity') or row.get('severity') or 
+                           row.get('Level') or row.get('level'))
+                description = (row.get('Description') or row.get('description') or 
+                              row.get('Comments') or row.get('comments') or '')
+                
+                # Validate required fields
+                if not all([date_str, latitude, longitude, species, incident_type, severity]):
+                    errors.append(f"Row {row_num}: Missing required fields")
+                    continue
+                
+                # Parse date
+                incident_date = parse_date(date_str)
+                if not incident_date:
+                    errors.append(f"Row {row_num}: Invalid date format - {date_str}")
+                    continue
+                
+                # Create incident
+                incident = Incident(
+                    date=incident_date,
+                    latitude=float(latitude),
+                    longitude=float(longitude),
+                    species=species.strip(),
+                    incident_type=incident_type.strip(),
+                    severity=severity.strip(),
+                    description=description.strip(),
+                    reported_by=user.email
+                )
+                
+                db.session.add(incident)
+                imported_count += 1
+                
+            except Exception as e:
+                errors.append(f"Row {row_num}: {str(e)}")
+                continue
+        
+        db.session.commit()
+        
+        result = {
+            'message': f'Successfully imported {imported_count} incidents',
+            'imported': imported_count,
+            'errors': errors
+        }
+        
+        if errors:
+            result['warning'] = f'Completed with {len(errors)} errors'
+        
+        return jsonify(result)
+            
+    except Exception as e:
+        db.session.rollback()
+        logger.error(f"Error importing incidents: {str(e)}")
+        return jsonify({'error': f'Import failed: {str(e)}'}), 500
+
+def parse_date(date_str):
+    """Parse date from string with multiple format support"""
+    date_str = str(date_str).strip()
+    
+    # Remove timezone info if present
+    if 'T' in date_str:
+        date_str = date_str.split('T')[0]
+    
+    formats = [
+        '%Y-%m-%d %H:%M:%S',
+        '%Y-%m-%d %H:%M',
+        '%Y-%m-%d',
+        '%m/%d/%Y %H:%M:%S',
+        '%m/%d/%Y %H:%M',
+        '%m/%d/%Y',
+        '%d/%m/%Y %H:%M:%S',
+        '%d/%m/%Y %H:%M',
+        '%d/%m/%Y'
+    ]
+    
+    for fmt in formats:
+        try:
+            return datetime.strptime(date_str, fmt)
+        except ValueError:
+            continue
+    
+    return None
+
+@app.route('/api/generate-predictions', methods=['GET'])
+@login_required
+def generate_predictions():
+    try:
+        # Use ALL incidents for predictions (team collaboration)
+        incidents = get_all_incidents()
+        
+        if len(incidents) < 2:
+            return jsonify({'error': 'Need at least 2 incidents to generate predictions. Currently team has ' + str(len(incidents)) + ' incidents.'}), 400
+        
+        predictions = []
+        for i, incident in enumerate(incidents[:6]):
+            risk_level = "HIGH" if incident.severity == "High" else "MEDIUM"
+            predictions.append({
+                'area_name': f'Risk Zone {i+1}',
+                'latitude': incident.latitude,
+                'longitude': incident.longitude,
+                'risk_level': risk_level,
+                'reason': f'Based on {incident.species} {incident.incident_type} incident'
+            })
+        
+        return jsonify({
+            'predictions': predictions,
+            'total_incidents_used': len(incidents),
+            'data_source': 'team_collaboration'
+        })
+    except Exception as e:
+        logger.error(f"Error generating predictions: {str(e)}")
+        return jsonify({'error': 'Failed to generate predictions'}), 500
+
+@app.route('/api/generate-hotspots', methods=['GET'])
+@login_required
+def generate_hotspots():
+    try:
+        # Use ALL incidents for hotspots (team collaboration)
+        incidents = get_all_incidents()
+        
+        if len(incidents) < 2:
+            return jsonify({'error': 'Need at least 2 incidents to identify hotspots. Currently team has ' + str(len(incidents)) + ' incidents.'}), 400
+        
+        hotspots = []
+        species_count = {}
+        
+        for incident in incidents:
+            species_count[incident.species] = species_count.get(incident.species, 0) + 1
+        
+        main_species = sorted(species_count.items(), key=lambda x: x[1], reverse=True)[:3]
+        main_species_names = [species for species, count in main_species]
+        
+        for i, incident in enumerate(incidents[:8]):
+            hotspots.append({
+                'name': f'Hotspot {i+1}',
+                'center_lat': incident.latitude,
+                'center_lng': incident.longitude,
+                'incident_count': 1,
+                'main_species': main_species_names
+            })
+        
+        return jsonify({
+            'hotspots': hotspots,
+            'total_incidents_used': len(incidents),
+            'data_source': 'team_collaboration'
+        })
+    except Exception as e:
+        logger.error(f"Error generating hotspots: {str(e)}")
+        return jsonify({'error': 'Failed to generate hotspots'}), 500
+
+@app.route('/api/statistics', methods=['GET'])
+@login_required
+def get_statistics():
+    user = get_current_user()
+    
+    try:
+        # User's personal statistics
+        user_incidents = get_user_incidents(user)
+        user_total = len(user_incidents)
+        user_high_severity = sum(1 for inc in user_incidents if inc.severity == 'High')
+        
+        # Team statistics
+        team_incidents = get_all_incidents()
+        team_total = len(team_incidents)
+        team_high_severity = sum(1 for inc in team_incidents if inc.severity == 'High')
+        
+        return jsonify({
+            # Personal stats
+            'total_incidents': user_total,
+            'high_severity_count': user_high_severity,
+            'data_coverage': min(100, user_total * 10),
+            
+            # Team stats
+            'team_total_incidents': team_total,
+            'team_high_severity': team_high_severity,
+            'team_members': User.query.count(),
+            'team_data_coverage': min(100, team_total * 5)
+        })
+    except Exception as e:
+        logger.error(f"Error getting statistics: {str(e)}")
+        return jsonify({'error': 'Failed to load statistics'}), 500
+
+@app.route('/export')
+@login_required
+def export_incidents():
+    user = get_current_user()
+    
+    try:
+        incidents = Incident.query.filter_by(reported_by=user.email).all()
+        
+        output = []
+        output.append('ID,Date,Latitude,Longitude,Species,IncidentType,Severity,Description,ReportedBy')
+        
+        for incident in incidents:
+            output.append(f'{incident.id},{incident.date},{incident.latitude},{incident.longitude},{incident.species},{incident.incident_type},{incident.severity},"{incident.description}",{incident.reported_by}')
+        
+        response = '\n'.join(output)
+        return Response(
+            response,
+            mimetype="text/csv",
+            headers={"Content-disposition": "attachment; filename=incidents.csv"}
+        )
+    except Exception as e:
+        logger.error(f"Error exporting incidents: {str(e)}")
+        flash('Error exporting data', 'error')
+        return redirect(url_for('view_incidents'))
 
 # Error handlers
 @app.errorhandler(404)
@@ -459,24 +621,13 @@ def internal_error(error):
     logger.error(f"Internal server error: {str(error)}")
     return render_template('500.html'), 500
 
-# Health check with database verification
+# Health check
 @app.route('/health')
 def health_check():
-    try:
-        user_count = User.query.count()
-        incident_count = Incident.query.count()
-        return jsonify({
-            'status': 'healthy', 
-            'timestamp': datetime.utcnow().isoformat(),
-            'users': user_count,
-            'incidents': incident_count,
-            'database': 'connected'
-        })
-    except Exception as e:
-        return jsonify({'status': 'unhealthy', 'error': str(e)}), 500
+    return jsonify({'status': 'healthy', 'timestamp': datetime.utcnow().isoformat()})
 
 # Initialize database
-print("Starting Wildlife Incident Reporter with Persistent Sessions...")
+print("Starting Wildlife Incident Reporter with Team Collaboration...")
 init_db()
 
 if __name__ == '__main__':

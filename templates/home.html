@@ -415,8 +415,8 @@
 
                 if (response.ok) {
                     document.getElementById('totalIncidents').textContent = result.total_incidents;
-                    document.getElementById('importedData').textContent = result.imported_incidents;
-                    document.getElementById('highRiskAreas').textContent = result.high_risk_areas;
+                    document.getElementById('importedData').textContent = result.total_incidents;
+                    document.getElementById('highRiskAreas').textContent = result.high_severity_count;
                     document.getElementById('dataCoverage').textContent = result.data_coverage + '%';
                 }
             } catch (error) {
