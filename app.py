@@ -95,11 +95,17 @@ def init_db():
 @app.route('/')
 def index():
     user = get_current_user()
+    # If user is logged in, redirect to home, otherwise show landing page
+    if user:
+        return redirect(url_for('home'))
     return render_template('home.html', user=user)
 
 @app.route('/home')
 def home():
     user = get_current_user()
+    if not user:
+        flash('Please login to access the dashboard', 'error')
+        return redirect(url_for('login'))
     return render_template('home.html', user=user)
 
 @app.route('/view-incidents')
@@ -128,7 +134,10 @@ def predictions():
 
 @app.route('/login', methods=['GET', 'POST'])
 def login():
-    if get_current_user():
+    # If user is already logged in, redirect to home
+    user = get_current_user()
+    if user:
+        flash('You are already logged in!', 'info')
         return redirect(url_for('home'))
     
     if request.method == 'POST':
@@ -157,7 +166,10 @@ def login():
 
 @app.route('/register', methods=['GET', 'POST'])
 def register():
-    if get_current_user():
+    # If user is already logged in, redirect to home
+    user = get_current_user()
+    if user:
+        flash('You are already logged in!', 'info')
         return redirect(url_for('home'))
     
     if request.method == 'POST':
@@ -187,12 +199,14 @@ def register():
             db.session.add(user)
             db.session.commit()
             
+            # Auto-login after registration
             session['user_id'] = user.id
             session['user_email'] = user.email
             session.permanent = True
             
-            flash('Registration successful!', 'success')
-            return redirect(url_for('home'))
+            flash('Registration successful! You have been automatically logged in.', 'success')
+            return redirect(url_for('home'))  # Redirect to home after registration
+            
         except Exception as e:
             db.session.rollback()
             flash('Registration failed. Please try again.', 'error')
@@ -627,7 +641,7 @@ def health_check():
     return jsonify({'status': 'healthy', 'timestamp': datetime.utcnow().isoformat()})
 
 # Initialize database
-print("Starting Wildlife Incident Reporter with Team Collaboration...")
+print("Starting Wildlife Incident Reporter...")
 init_db()
 
 if __name__ == '__main__':

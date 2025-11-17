@@ -316,7 +316,7 @@
             <div class="feature-card">
                 <div class="feature-icon">📝</div>
                 <h3>Report Incidents</h3>
-                <p>Quickly report wildlife incidents with GPS location, photos, and detailed information about the encounter.</p>
+                <p>Quickly report wildlife incidents with GPS location and detailed information about the encounter.</p>
                 <a href="{{ url_for('report_incident') }}" class="btn" style="margin-top: 15px;">Report Now</a>
             </div>
 
@@ -330,7 +330,7 @@
             <div class="feature-card">
                 <div class="feature-icon">🔮</div>
                 <h3>Predictions & Hotspots</h3>
-                <p>Identify high-risk areas and patterns using AI-powered analysis of historical incident data.</p>
+                <p>Identify high-risk areas and patterns using analysis of historical incident data.</p>
                 <a href="{{ url_for('predictions') }}" class="btn" style="margin-top: 15px;">Analyze Data</a>
             </div>
         </div>
@@ -340,11 +340,11 @@
             <div class="stats-grid">
                 <div class="stat-card">
                     <div class="stat-number" id="totalIncidents">0</div>
-                    <div class="stat-label">Total Incidents</div>
+                    <div class="stat-label">Your Incidents</div>
                 </div>
                 <div class="stat-card">
-                    <div class="stat-number" id="importedData">0</div>
-                    <div class="stat-label">Imported Data</div>
+                    <div class="stat-number" id="teamIncidents">0</div>
+                    <div class="stat-label">Team Incidents</div>
                 </div>
                 <div class="stat-card">
                     <div class="stat-number" id="highRiskAreas">0</div>
@@ -362,18 +362,21 @@
                 <div class="feature-icon">🐾</div>
                 <h3>Track Wildlife Encounters</h3>
                 <p>Record and monitor wildlife incidents with precise GPS location data and detailed encounter information.</p>
+                <a href="{{ url_for('register') }}" class="btn" style="margin-top: 15px;">Get Started</a>
             </div>
 
             <div class="feature-card">
                 <div class="feature-icon">📈</div>
                 <h3>Analyze Patterns</h3>
-                <p>Identify hotspots and predict high-risk areas using advanced data analysis and machine learning.</p>
+                <p>Identify hotspots and predict high-risk areas using advanced data analysis.</p>
+                <a href="{{ url_for('login') }}" class="btn" style="margin-top: 15px;">Login to Analyze</a>
             </div>
 
             <div class="feature-card">
                 <div class="feature-icon">🛡️</div>
                 <h3>Prevent Conflicts</h3>
                 <p>Use data-driven insights to prevent human-wildlife conflicts and protect both communities and wildlife.</p>
+                <a href="{{ url_for('login_guest') }}" class="btn" style="margin-top: 15px;">Try as Guest</a>
             </div>
         </div>
 
@@ -393,8 +396,8 @@
                     <div class="stat-label">Smart Predictions</div>
                 </div>
                 <div class="stat-card">
-                    <div class="stat-number">🔄</div>
-                    <div class="stat-label">Real-time Data</div>
+                    <div class="stat-number">👥</div>
+                    <div class="stat-label">Team Collaboration</div>
                 </div>
             </div>
         </div>
@@ -415,7 +418,7 @@
 
                 if (response.ok) {
                     document.getElementById('totalIncidents').textContent = result.total_incidents;
-                    document.getElementById('importedData').textContent = result.total_incidents;
+                    document.getElementById('teamIncidents').textContent = result.team_total_incidents;
                     document.getElementById('highRiskAreas').textContent = result.high_severity_count;
                     document.getElementById('dataCoverage').textContent = result.data_coverage + '%';
                 }
@@ -426,6 +429,13 @@
 
         document.addEventListener('DOMContentLoaded', function() {
             loadStatistics();
+            
+            // Check if user is properly logged in
+            const isAuthenticated = {% if user and user.is_authenticated %}true{% else %}false{% endif %};
+            const userEmail = '{% if user %}{{ user.email }}{% else %}No user{% endif %}';
+            
+            console.log('User authenticated:', isAuthenticated);
+            console.log('User email:', userEmail);
         });
     </script>
     {% endif %}
