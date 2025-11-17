@@ -407,6 +407,9 @@
     <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
     
     <script>
+        // Initialize location cache FIRST to avoid reference errors
+        let locationCache = new Map();
+        
         // Initialize the map
         let map = L.map('hotspotMap').setView([-3.557359, 37.784127], 6); // Default center (Tanzania)
         let hotspotsVisible = true;
@@ -711,9 +714,6 @@
         function resetMapView() {
             map.setView([-3.557359, 37.784127], 6);
         }
-        
-        // Initialize location cache
-        let locationCache = new Map();
         
         // Load team statistics
         async function loadTeamStatistics() {
