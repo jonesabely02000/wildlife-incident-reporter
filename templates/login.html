@@ -89,14 +89,26 @@
             color: #721c24;
             border: 1px solid #f5c6cb;
         }
-        .guest-info {
-            background: #fff3cd;
+        .guest-section {
+            margin-top: 20px;
+            padding-top: 20px;
+            border-top: 1px solid #eee;
+            text-align: center;
+        }
+        .btn-guest {
+            background: #9b59b6;
+            margin-top: 10px;
+        }
+        .btn-guest:hover {
+            background: #8e44ad;
+        }
+        .register-prompt {
+            background: #e8f4f8;
             padding: 15px;
-            border-radius: 5px;
+            border-radius: 8px;
             margin: 20px 0;
             text-align: center;
-            font-size: 14px;
-            color: #856404;
+            border-left: 4px solid #3498db;
         }
     </style>
 </head>
@@ -116,10 +128,19 @@
             {% endif %}
         {% endwith %}
 
+        <!-- Register Prompt -->
+        <div class="register-prompt">
+            <strong>New user?</strong><br>
+            Create an account to start reporting incidents.
+            <a href="{{ url_for('register') }}" style="display: inline-block; margin-top: 10px; padding: 8px 16px; background: #27ae60; color: white; text-decoration: none; border-radius: 5px; font-size: 14px;">
+                📝 Register Here
+            </a>
+        </div>
+
         <form method="POST">
             <div class="form-group">
                 <label for="email">Email Address:</label>
-                <input type="email" id="email" name="email" required placeholder="Enter your email">
+                <input type="email" id="email" name="email" required placeholder="Enter your registered email" value="{{ request.form.email if request.form }}">
             </div>
 
             <div class="form-group">
@@ -127,30 +148,41 @@
                 <input type="password" id="password" name="password" required placeholder="Enter your password">
             </div>
 
-            <div class="form-group" style="text-align: center; margin: 15px 0;">
-                <a href="{{ url_for('forgot_password') }}" style="color: #3498db; text-decoration: none; font-size: 14px;">
-                    🔑 Forgot your password?
-                </a>
-            </div>
-
             <button type="submit" class="btn">Login</button>
         </form>
 
-        <div class="guest-info">
-            <strong>Quick Access:</strong> Don't have an account? Use guest login for immediate access to all features.
+        <div class="guest-section">
+            <p>Want to try without registering?</p>
+            <a href="{{ url_for('login_guest') }}" class="btn btn-guest" style="display: inline-block; width: auto; padding: 10px 20px;">
+                🎭 Guest Login
+            </a>
         </div>
 
         <div class="links">
-            <a href="{{ url_for('login_guest') }}">🎭 Guest Login</a>
             <a href="{{ url_for('register') }}">📝 Create Account</a>
+            <a href="{{ url_for('forgot_password') }}">🔑 Forgot Password?</a>
             <a href="{{ url_for('home') }}">🏠 Back to Home</a>
         </div>
-
-        <div style="text-align: center; margin-top: 30px; padding: 15px; background: #f8f9fa; border-radius: 5px;">
-            <strong>Demo Account:</strong><br>
-            Email: guest@wildlife.com<br>
-            Password: guest123
-        </div>
     </div>
+
+    <script>
+        // Auto-focus on email field
+        document.addEventListener('DOMContentLoaded', function() {
+            document.getElementById('email').focus();
+            
+            // If user is already logged in, redirect to home
+            {% if user and user.is_authenticated %}
+                setTimeout(() => {
+                    window.location.href = '/home';
+                }, 1000);
+            {% endif %}
+            
+            // Clear any stored form data
+            if (performance.navigation.type === 1) {
+                // Page was reloaded, clear form
+                document.querySelector('form').reset();
+            }
+        });
+    </script>
 </body>
 </html>

@@ -118,6 +118,17 @@ def init_db():
                 db.init_app(app)
                 db.create_all()
 
+# Session management
+@app.before_request
+def check_session():
+    """Check if user session is still valid"""
+    if 'user_id' in session:
+        user = User.query.get(session['user_id'])
+        if not user:
+            # User was deleted from database
+            session.clear()
+            flash('Session expired. Please login again.', 'error')
+
 # Routes
 @app.route('/')
 def index():
@@ -168,26 +179,29 @@ def login():
         return redirect(url_for('home'))
     
     if request.method == 'POST':
-        email = request.form.get('email', '').strip()
+        email = request.form.get('email', '').strip().lower()
         password = request.form.get('password', '')
         
-        user = User.query.filter_by(email=email, password=password).first()
+        user = User.query.filter_by(email=email).first()
         if user:
-            session['user_id'] = user.id
-            session['user_email'] = user.email
-            session.permanent = True
-            
-            user.last_login = datetime.utcnow()
-            db.session.commit()
-            
-            flash('Login successful!', 'success')
-            
-            next_page = request.args.get('next')
-            if next_page:
-                return redirect(next_page)
-            return redirect(url_for('home'))
+            if user.password == password:  # Simple password check
+                session['user_id'] = user.id
+                session['user_email'] = user.email
+                session.permanent = True
+                
+                user.last_login = datetime.utcnow()
+                db.session.commit()
+                
+                flash(f'Welcome back, {user.email}!', 'success')
+                
+                next_page = request.args.get('next')
+                if next_page:
+                    return redirect(next_page)
+                return redirect(url_for('home'))
+            else:
+                flash('Invalid password', 'error')
         else:
-            flash('Invalid email or password', 'error')
+            flash('Email not registered. Please register first.', 'error')
     
     return render_template('login.html')
 
@@ -218,7 +232,7 @@ def register():
         
         existing_user = User.query.filter_by(email=email).first()
         if existing_user:
-            flash('Email already registered', 'error')
+            flash('Email already registered. Please login instead.', 'error')
             return render_template('register.html')
         
         try:
@@ -236,6 +250,7 @@ def register():
             
         except Exception as e:
             db.session.rollback()
+            logger.error(f"Registration error: {str(e)}")
             flash('Registration failed. Please try again.', 'error')
     
     return render_template('register.html')
@@ -250,10 +265,13 @@ def forgot_password():
         user = User.query.filter_by(email=email).first()
         
         if user:
-            flash(f'Password for {email}: {user.password}', 'success')
+            # In a real app, you'd send an email with password reset link
+            # For now, just show the password (since it's plaintext in this simple demo)
+            flash(f'Password for {email}: {user.password}', 'info')
+            flash('Please use this password to login. Consider changing it after login.', 'info')
             return redirect(url_for('login'))
         else:
-            flash('Email not found', 'error')
+            flash('Email not found. Please check your email or register for a new account.', 'error')
     
     return render_template('forgot_password.html')
 
