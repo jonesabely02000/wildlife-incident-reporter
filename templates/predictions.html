@@ -213,13 +213,6 @@
         .icon-hyena { background: #8B7355; }
         .icon-other { background: #6A5ACD; }
         
-        .hotspot-circle {
-            stroke: #000;
-            stroke-width: 2;
-            stroke-opacity: 0.8;
-            fill-opacity: 0.4;
-        }
-        
         .analysis-grid {
             display: grid;
             grid-template-columns: 1fr 1fr;
@@ -238,6 +231,28 @@
             color: #7f8c8d;
             font-style: italic;
             font-size: 0.9em;
+        }
+
+        /* Improved hotspot circle styles */
+        .hotspot-circle-high {
+            stroke: #e74c3c;
+            stroke-width: 3;
+            stroke-dasharray: 5, 5;
+            fill: none;
+        }
+        
+        .hotspot-circle-medium {
+            stroke: #f39c12;
+            stroke-width: 2;
+            stroke-dasharray: 3, 3;
+            fill: none;
+        }
+        
+        .hotspot-circle-low {
+            stroke: #27ae60;
+            stroke-width: 2;
+            stroke-dasharray: 2, 2;
+            fill: none;
         }
         
         @media (max-width: 768px) {
@@ -315,14 +330,14 @@
                 <button class="btn" onclick="resetMapView()" style="background: #3498db;">
                     🏠 Reset Map View
                 </button>
-                <button class="btn" onclick="toggleHeatmap()" style="background: #e74c3c;">
-                    🔥 Toggle Heatmap
+                <button class="btn" onclick="toggleHotspots()" style="background: #e74c3c;">
+                    🔄 Toggle Hotspots
                 </button>
                 <button class="btn" onclick="getLocationNames()" style="background: #9b59b6;">
                     📍 Get Location Names
                 </button>
                 <span style="margin-left: 15px; font-size: 14px; color: #666;">
-                    🎯 Click on markers for details | 🔍 Use mouse wheel to zoom
+                    🎯 Click on markers for details | 🔍 Use mouse wheel to zoom | 📏 1km radius circles
                 </span>
             </div>
             
@@ -331,26 +346,26 @@
             </div>
             
             <div class="map-legend">
-                <h4 style="margin: 0 0 10px 0; font-size: 14px;">Animal Legend</h4>
+                <h4 style="margin: 0 0 10px 0; font-size: 14px;">Map Legend</h4>
                 <div class="legend-item">
-                    <div class="legend-color icon-elephant"></div>
-                    <span>Elephant</span>
+                    <div style="width: 20px; height: 3px; background: #e74c3c; margin-right: 8px;"></div>
+                    <span>High Risk (1km)</span>
+                </div>
+                <div class="legend-item">
+                    <div style="width: 20px; height: 2px; background: #f39c12; margin-right: 8px;"></div>
+                    <span>Medium Risk (1km)</span>
+                </div>
+                <div class="legend-item">
+                    <div style="width: 20px; height: 2px; background: #27ae60; margin-right: 8px;"></div>
+                    <span>Low Risk (1km)</span>
                 </div>
                 <div class="legend-item">
                     <div class="legend-color icon-lion"></div>
-                    <span>Lion</span>
+                    <span>Animal Incident</span>
                 </div>
                 <div class="legend-item">
-                    <div class="legend-color icon-leopard"></div>
-                    <span>Leopard</span>
-                </div>
-                <div class="legend-item">
-                    <div class="legend-color icon-hyena"></div>
-                    <span>Hyena</span>
-                </div>
-                <div class="legend-item">
-                    <div class="legend-color icon-other"></div>
-                    <span>Other Species</span>
+                    <div style="width: 20px; height: 20px; background: #e74c3c; border-radius: 50%; margin-right: 8px;"></div>
+                    <span>Hotspot Center</span>
                 </div>
             </div>
         </div>
@@ -384,7 +399,7 @@
             <h3>ℹ️ Data Source Information</h3>
             <p><strong>Team Collaboration:</strong> All predictions and hotspots are generated using combined data from all team members.</p>
             <p><strong>Real-time Analysis:</strong> Analysis updates automatically as team members report new incidents.</p>
-            <p><strong>Interactive Map:</strong> Zoom in/out and click on markers to see detailed incident information with location names.</p>
+            <p><strong>Interactive Map:</strong> 1km radius circles show risk areas without obstructing map visibility.</p>
         </div>
     </div>
 
@@ -394,9 +409,8 @@
     <script>
         // Initialize the map
         let map = L.map('hotspotMap').setView([-3.557359, 37.784127], 6); // Default center (Tanzania)
-        let heatmapLayer = null;
-        let heatmapEnabled = false;
-        let locationCache = new Map(); // Cache for location names
+        let hotspotsVisible = true;
+        let hotspotLayers = L.layerGroup().addTo(map);
         
         // Add base tile layer
         L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
@@ -546,67 +560,116 @@
             }
         }
         
-        // Function to add hotspots to map
+        // Function to add hotspots to map with 1km radius
         async function addHotspotsToMap(hotspots) {
-            // Remove existing hotspot layers
-            map.eachLayer(layer => {
-                if (layer.hotspotCircle || layer.hotspotMarker) {
-                    map.removeLayer(layer);
-                }
-            });
+            // Clear existing hotspot layers
+            hotspotLayers.clearLayers();
             
             for (const hotspot of hotspots) {
                 // Get location name for this hotspot
                 const locationName = await getLocationName(hotspot.center_lat, hotspot.center_lng);
                 
-                // Add circle for hotspot area
+                // Determine circle style based on risk level
+                const riskLevel = getHotspotRiskLevel(hotspot);
+                const circleStyle = getCircleStyle(riskLevel);
+                
+                // Add 1km radius circle (no fill, just outline)
                 const circle = L.circle([hotspot.center_lat, hotspot.center_lng], {
-                    color: '#e74c3c',
-                    fillColor: '#e74c3c',
-                    fillOpacity: 0.2,
-                    radius: 5000 // 5km radius
+                    color: circleStyle.color,
+                    fillColor: circleStyle.fillColor,
+                    fillOpacity: circleStyle.fillOpacity,
+                    weight: circleStyle.weight,
+                    dashArray: circleStyle.dashArray,
+                    radius: 1000 // 1km radius
                 });
-                circle.hotspotCircle = true;
-                circle.addTo(map);
                 
                 // Add marker for hotspot center
                 const marker = L.marker([hotspot.center_lat, hotspot.center_lng], {
                     icon: L.divIcon({
                         className: 'hotspot-marker',
                         html: `<div style="
-                            background: #e74c3c; 
-                            width: 35px; 
-                            height: 35px; 
+                            background: ${circleStyle.color}; 
+                            width: 20px; 
+                            height: 20px; 
                             border-radius: 50%; 
-                            border: 3px solid white;
-                            box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+                            border: 2px solid white;
+                            box-shadow: 0 2px 6px rgba(0,0,0,0.3);
                             display: flex;
                             align-items: center;
                             justify-content: center;
                             color: white;
                             font-weight: bold;
-                            font-size: 16px;
+                            font-size: 12px;
                         ">🔥</div>`,
-                        iconSize: [35, 35],
-                        iconAnchor: [17, 17]
+                        iconSize: [20, 20],
+                        iconAnchor: [10, 10]
                     })
                 });
-                marker.hotspotMarker = true;
                 
                 const popupContent = `
                     <div style="min-width: 280px;">
-                        <h4 style="margin: 0 0 10px 0; color: #e74c3c;">${hotspot.name}</h4>
+                        <h4 style="margin: 0 0 10px 0; color: ${circleStyle.color};">${hotspot.name}</h4>
                         <div class="location-name">📍 ${locationName}</div>
+                        <p><strong>Risk Level:</strong> <span style="color: ${circleStyle.color}">${riskLevel}</span></p>
                         <p><strong>Incident Count:</strong> ${hotspot.incident_count}</p>
                         <p><strong>Main Species:</strong> ${hotspot.main_species.map(species => `<span class="species-tag">${species}</span>`).join('')}</p>
                         <p><strong>Coordinates:</strong> ${hotspot.center_lat.toFixed(4)}, ${hotspot.center_lng.toFixed(4)}</p>
-                        <p style="font-size: 12px; color: #666;">Hotspot radius: 5km | Area: ~78.5 km²</p>
+                        <p style="font-size: 12px; color: #666;">Hotspot radius: 1km | Area: ~3.14 km²</p>
                     </div>
                 `;
                 
                 marker.bindPopup(popupContent);
-                map.addLayer(marker);
+                circle.bindPopup(popupContent);
+                
+                // Add to hotspot layers group
+                hotspotLayers.addLayer(circle);
+                hotspotLayers.addLayer(marker);
             }
+        }
+        
+        // Determine hotspot risk level based on species and incident count
+        function getHotspotRiskLevel(hotspot) {
+            const highRiskSpecies = ['lion', 'leopard', 'elephant', 'rhino'];
+            const mediumRiskSpecies = ['buffalo', 'hippo', 'hyena'];
+            
+            const hasHighRisk = hotspot.main_species.some(species => 
+                highRiskSpecies.includes(species.toLowerCase())
+            );
+            const hasMediumRisk = hotspot.main_species.some(species => 
+                mediumRiskSpecies.includes(species.toLowerCase())
+            );
+            
+            if (hasHighRisk || hotspot.incident_count >= 3) return 'High';
+            if (hasMediumRisk || hotspot.incident_count >= 2) return 'Medium';
+            return 'Low';
+        }
+        
+        // Get circle style based on risk level
+        function getCircleStyle(riskLevel) {
+            const styles = {
+                'High': {
+                    color: '#e74c3c',
+                    fillColor: '#e74c3c',
+                    fillOpacity: 0.05, // Very light fill
+                    weight: 3,
+                    dashArray: '5, 5'
+                },
+                'Medium': {
+                    color: '#f39c12',
+                    fillColor: '#f39c12',
+                    fillOpacity: 0.03, // Very light fill
+                    weight: 2,
+                    dashArray: '3, 3'
+                },
+                'Low': {
+                    color: '#27ae60',
+                    fillColor: '#27ae60',
+                    fillOpacity: 0.02, // Very light fill
+                    weight: 2,
+                    dashArray: '2, 2'
+                }
+            };
+            return styles[riskLevel] || styles['Low'];
         }
         
         // Function to update all location names
@@ -633,38 +696,24 @@
             }
         }
         
-        // Toggle heatmap view
-        function toggleHeatmap() {
-            if (heatmapEnabled) {
-                if (heatmapLayer) {
-                    map.removeLayer(heatmapLayer);
-                }
-                heatmapEnabled = false;
+        // Toggle hotspots visibility
+        function toggleHotspots() {
+            if (hotspotsVisible) {
+                map.removeLayer(hotspotLayers);
+                hotspotsVisible = false;
             } else {
-                // Simple heatmap simulation using circles
-                heatmapLayer = L.layerGroup();
-                markers.getLayers().forEach(marker => {
-                    const latlng = marker.getLatLng();
-                    const circle = L.circle(latlng, {
-                        color: 'red',
-                        fillColor: 'red',
-                        fillOpacity: 0.3,
-                        radius: 2000
-                    });
-                    heatmapLayer.addLayer(circle);
-                });
-                map.addLayer(heatmapLayer);
-                heatmapEnabled = true;
+                map.addLayer(hotspotLayers);
+                hotspotsVisible = true;
             }
         }
         
         // Reset map view
         function resetMapView() {
             map.setView([-3.557359, 37.784127], 6);
-            if (heatmapEnabled) {
-                toggleHeatmap();
-            }
         }
+        
+        // Initialize location cache
+        let locationCache = new Map();
         
         // Load team statistics
         async function loadTeamStatistics() {
@@ -790,7 +839,8 @@
                         <span class="coordinates">${prediction.latitude}, ${prediction.longitude}</span>
                     </p>
                     <p><strong>Reason:</strong> ${prediction.reason}</p>
-                    <button class="btn" onclick="map.setView([${prediction.latitude}, ${prediction.longitude}], 12)" style="padding: 5px 10px; font-size: 12px; margin-top: 8px;">
+                    <p><strong>Radius:</strong> 1km area</p>
+                    <button class="btn" onclick="map.setView([${prediction.latitude}, ${prediction.longitude}], 14)" style="padding: 5px 10px; font-size: 12px; margin-top: 8px;">
                         🗺️ View on Map
                     </button>
                 </div>`;
@@ -815,18 +865,21 @@
             for (const hotspot of result.hotspots) {
                 // Get location name for this hotspot
                 const locationName = await getLocationName(hotspot.center_lat, hotspot.center_lng);
+                const riskLevel = getHotspotRiskLevel(hotspot);
 
                 html += `
                 <div class="hotspot-card">
                     <h4>${hotspot.name}</h4>
                     <div class="location-name">📍 ${locationName}</div>
+                    <p><strong>Risk Level:</strong> <span style="color: ${riskLevel === 'High' ? '#e74c3c' : riskLevel === 'Medium' ? '#f39c12' : '#27ae60'}">${riskLevel}</span></p>
                     <p><strong>Center Location:</strong> 
                         <span class="coordinates">${hotspot.center_lat}, ${hotspot.center_lng}</span>
                     </p>
                     <p><strong>Main Species:</strong> 
                         ${hotspot.main_species.map(species => `<span class="species-tag">${species}</span>`).join('')}
                     </p>
-                    <button class="btn" onclick="map.setView([${hotspot.center_lat}, ${hotspot.center_lng}], 10)" style="padding: 5px 10px; font-size: 12px; margin-top: 8px;">
+                    <p><strong>Radius:</strong> 1km area</p>
+                    <button class="btn" onclick="map.setView([${hotspot.center_lat}, ${hotspot.center_lng}], 14)" style="padding: 5px 10px; font-size: 12px; margin-top: 8px;">
                         🗺️ View on Map
                     </button>
                 </div>`;
