@@ -572,8 +572,8 @@ def generate_predictions():
             risk_level = "HIGH" if incident.severity == "High" else "MEDIUM"
             predictions.append({
                 'area_name': f'Risk Zone {i+1}',
-                'latitude': incident.latitude,
-                'longitude': incident.longitude,
+                'latitude': float(incident.latitude),
+                'longitude': float(incident.longitude),
                 'risk_level': risk_level,
                 'reason': f'Based on {incident.species} {incident.incident_type} incident'
             })
@@ -587,6 +587,7 @@ def generate_predictions():
         logger.error(f"Error generating predictions: {str(e)}")
         return jsonify({'error': 'Failed to generate predictions'}), 500
 
+# FIXED HOTSPOTS FUNCTION
 @app.route('/api/generate-hotspots', methods=['GET'])
 @login_required
 def generate_hotspots():
@@ -595,22 +596,27 @@ def generate_hotspots():
         incidents = get_all_incidents()
         
         if len(incidents) < 2:
-            return jsonify({'error': 'Need at least 2 incidents to identify hotspots. Currently team has ' + str(len(incidents)) + ' incidents.'}), 400
+            return jsonify({
+                'error': f'Need at least 2 incidents to identify hotspots. Currently team has {len(incidents)} incidents.'
+            }), 400
         
         hotspots = []
         species_count = {}
         
+        # Count species occurrences
         for incident in incidents:
             species_count[incident.species] = species_count.get(incident.species, 0) + 1
         
+        # Get top 3 species
         main_species = sorted(species_count.items(), key=lambda x: x[1], reverse=True)[:3]
         main_species_names = [species for species, count in main_species]
         
-        for i, incident in enumerate(incidents[:8]):
+        # Create hotspots based on incidents
+        for i, incident in enumerate(incidents[:8]):  # Limit to 8 hotspots
             hotspots.append({
                 'name': f'Hotspot {i+1}',
-                'center_lat': incident.latitude,
-                'center_lng': incident.longitude,
+                'center_lat': float(incident.latitude),
+                'center_lng': float(incident.longitude),
                 'incident_count': 1,
                 'main_species': main_species_names
             })
@@ -620,9 +626,12 @@ def generate_hotspots():
             'total_incidents_used': len(incidents),
             'data_source': 'team_collaboration'
         })
+        
     except Exception as e:
         logger.error(f"Error generating hotspots: {str(e)}")
-        return jsonify({'error': 'Failed to generate hotspots'}), 500
+        return jsonify({
+            'error': f'Failed to generate hotspots: {str(e)}'
+        }), 500
 
 @app.route('/api/statistics', methods=['GET'])
 @login_required

@@ -1,84 +1,108 @@
 <!DOCTYPE html>
 <html>
 <head>
-    <title>Wildlife Incident Reporting</title>
+    <title>Wildlife Incident Reporter</title>
     <style>
         body {
             font-family: Arial, sans-serif;
-            background-image: url('/static/wildlife.jpg');
-            background-size: cover;
-            color: #333;
+            margin: 0;
             padding: 20px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            color: #333;
         }
-        nav a {
-            margin-right: 15px;
-            font-weight: bold;
+        .container {
+            background: white;
+            padding: 40px;
+            border-radius: 15px;
+            box-shadow: 0 8px 32px rgba(0,0,0,0.1);
+            max-width: 800px;
+            margin: 50px auto;
+            text-align: center;
+        }
+        h1 {
+            color: #2c3e50;
+            margin-bottom: 10px;
+        }
+        .subtitle {
+            color: #666;
+            margin-bottom: 30px;
+            font-size: 1.2em;
+        }
+        .auth-buttons {
+            margin: 30px 0;
+        }
+        .btn {
+            display: inline-block;
+            padding: 15px 30px;
+            margin: 10px;
+            background: #27ae60;
             color: white;
             text-decoration: none;
+            border-radius: 8px;
+            font-size: 16px;
+            font-weight: bold;
+            transition: all 0.3s;
         }
-        form {
-            background: rgba(255,255,255,0.9);
+        .btn:hover {
+            background: #219a52;
+            transform: translateY(-2px);
+        }
+        .btn-secondary {
+            background: #3498db;
+        }
+        .btn-secondary:hover {
+            background: #2980b9;
+        }
+        .features {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 20px;
+            margin: 40px 0;
+        }
+        .feature {
+            background: #f8f9fa;
             padding: 20px;
             border-radius: 10px;
-            max-width: 700px;
+            border-left: 4px solid #3498db;
         }
-        label { display: block; margin-top: 10px; }
-        input, select, textarea { width: 100%; padding: 5px; }
-        #map { height: 150px; width: 200px; display:inline-block; margin-left: 20px; vertical-align: top; }
     </style>
 </head>
 <body>
-    <h1>Welcome to Wildlife Incident Reporting</h1>
-    <nav>
-        <a href="/incidents">View Incidents</a>
-        <a href="/">Report Incident</a>
-    </nav>
+    <div class="container">
+        <h1>🐾 Wildlife Incident Reporter</h1>
+        <div class="subtitle">Track, Report, and Analyze Wildlife Incidents</div>
+        
+        <div class="auth-buttons">
+            <a href="{{ url_for('login') }}" class="btn">🔐 Login</a>
+            <a href="{{ url_for('register') }}" class="btn btn-secondary">📝 Register</a>
+            <a href="{{ url_for('login_guest') }}" class="btn">🎭 Guest Access</a>
+        </div>
 
-    <h2>Report Incident</h2>
-    <form id="reportForm" enctype="multipart/form-data">
-        <label>Village</label>
-        <input type="text" name="village" required>
+        <div class="features">
+            <div class="feature">
+                <h3>📝 Report Incidents</h3>
+                <p>Quickly report wildlife incidents with GPS location and detailed information</p>
+            </div>
+            <div class="feature">
+                <h3>📊 View Data</h3>
+                <p>Browse and analyze all reported incidents with filtering options</p>
+            </div>
+            <div class="feature">
+                <h3>🔮 Predict Hotspots</h3>
+                <p>Identify high-risk areas using advanced data analysis</p>
+            </div>
+        </div>
 
-        <label>Latitude</label>
-        <input type="number" step="any" name="latitude" required>
-
-        <label>Longitude</label>
-        <input type="number" step="any" name="longitude" required>
-
-        <label>Damage Type</label>
-        <select name="damage_type">
-            <option value="crop">Crop</option>
-            <option value="livestock">Livestock</option>
-            <option value="property">Property</option>
-        </select>
-
-        <label>Estimated Loss</label>
-        <input type="number" step="any" name="estimated_loss">
-
-        <label>Reported By</label>
-        <input type="text" name="reported_by">
-
-        <label>Remarks</label>
-        <textarea name="remarks"></textarea>
-
-        <label>Attach Incident Picture</label>
-        <input type="file" name="image">
-
-        <button type="submit" style="margin-top:10px;">Submit</button>
-    </form>
-
-    <script>
-        document.getElementById('reportForm').addEventListener('submit', async (e) => {
-            e.preventDefault();
-            const formData = new FormData(e.target);
-            const response = await fetch('/report', {
-                method: 'POST',
-                body: formData
-            });
-            const result = await response.json();
-            alert('Incident submitted with ID: ' + result.id);
-            e.target.reset();
-        });
-    </script>
+        {% with messages = get_flashed_messages(with_categories=true) %}
+            {% if messages %}
+                {% for category, message in messages %}
+                    <div style="padding: 10px; margin: 10px 0; background: {% if category == 'success' %}#d4edda{% else %}#f8d7da{% endif %}; color: {% if category == 'success' %}#155724{% else %}#721c24{% endif %}; border-radius: 5px;">
+                        {{ message }}
+                    </div>
+                {% endfor %}
+            {% endif %}
+        {% endwith %}
+    </div>
 </body>
 </html>
