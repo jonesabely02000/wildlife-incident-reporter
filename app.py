@@ -367,6 +367,33 @@ def get_incidents():
         logger.error(f"Error in get_incidents: {str(e)}")
         return jsonify({'error': 'Failed to load incidents'}), 500
 
+# NEW ENDPOINT: Get ALL incidents for team collaboration
+@app.route('/api/all-incidents', methods=['GET'])
+@login_required
+def get_all_incidents_api():
+    """Get ALL incidents for team collaboration (map display)"""
+    try:
+        incidents = get_all_incidents()  # This already gets all incidents
+        
+        incidents_data = []
+        for incident in incidents:
+            incidents_data.append({
+                'id': incident.id,
+                'date': incident.date.isoformat(),
+                'latitude': incident.latitude,
+                'longitude': incident.longitude,
+                'species': incident.species,
+                'incident_type': incident.incident_type,
+                'severity': incident.severity,
+                'description': incident.description,
+                'reported_by': incident.reported_by
+            })
+        
+        return jsonify({'incidents': incidents_data})
+    except Exception as e:
+        logger.error(f"Error in get_all_incidents_api: {str(e)}")
+        return jsonify({'error': 'Failed to load team incidents'}), 500
+
 @app.route('/api/report-incident', methods=['POST'])
 @login_required
 def api_report_incident():
